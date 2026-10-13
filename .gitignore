@@ -1,0 +1,16 @@
+.vscode/
+.cursor/
+.claude/
+.agents
+
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.ipynb_checkpoints/
+
+.env
+
+output/
+
+AGENTS.md
