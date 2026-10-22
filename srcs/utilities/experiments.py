@@ -31,8 +31,10 @@ DEFAULT_LR = 1e-3
 DEFAULT_SEED = 42
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 DEFAULT_DATA_DIR = os.path.join(PROJECT_ROOT, "data")
-DEFAULT_MODEL_DIR = os.path.join(PROJECT_ROOT, "bin", "models")
-DEFAULT_RESULTS_DIR = os.path.join(PROJECT_ROOT, "bin", "results")
+DEFAULT_DAY01_TASK01_MODELS_DIR = os.path.join(PROJECT_ROOT, "bin", "day01", "task01", "models")
+DEFAULT_DAY01_TASK01_RESULTS_DIR = os.path.join(PROJECT_ROOT, "bin", "day01", "task01", "results")
+DEFAULT_DAY01_TASK02_MODELS_DIR = os.path.join(PROJECT_ROOT, "bin", "day01", "task02", "models")
+DEFAULT_DAY01_TASK02_RESULTS_DIR = os.path.join(PROJECT_ROOT, "bin", "day01", "task02", "results")
 DEFAULT_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 
@@ -43,6 +45,8 @@ def run_bai01_neuron_study(neuron_list: Optional[List[int]] = None,
                            noise: float = 0.28,
                            seed: int = DEFAULT_SEED,
                            device: str = DEFAULT_DEVICE,
+                           models_dir: str = DEFAULT_DAY01_TASK01_MODELS_DIR,
+                           results_dir: str = DEFAULT_DAY01_TASK01_RESULTS_DIR,
                            verbose: bool = False) -> Dict[str, Any]:
     """Execute comparative study of MLP architectures on make_moons across specified neuron widths.
 
@@ -53,13 +57,15 @@ def run_bai01_neuron_study(neuron_list: Optional[List[int]] = None,
             noise       -- coordinate Gaussian noise magnitude (default 0.28);
             seed        -- random generator seed (default DEFAULT_SEED);
             device      -- target hardware accelerator or cpu (default DEFAULT_DEVICE);
+            models_dir  -- destination directory for model checkpoint binaries;
+            results_dir -- destination directory for summary results;
             verbose     -- whether to output per-epoch logs (default False).
     Output: dictionary packaging models, training histories, tabular summary DataFrame, and raw dataset.
     Flow:   seed random generators, create synthetic two-moons data loaders,
             iterate across specified neuron configurations, instantiate two-layer MLP for each,
             record trainable parameter count, train network and record metrics,
-            save checkpoint binaries to bin/models/, assemble comparative metrics DataFrame,
-            serialize summary results to bin/results/, and return comprehensive experiment bundle.
+            save checkpoint binaries to models_dir, assemble comparative metrics DataFrame,
+            serialize summary results to results_dir, and return comprehensive experiment bundle.
     """
     if neuron_list is None:
         neuron_list = DEFAULT_NEURONS
@@ -92,7 +98,7 @@ def run_bai01_neuron_study(neuron_list: Optional[List[int]] = None,
         models_dict[model_name] = model
         histories_dict[model_name] = history
 
-        checkpoint_path = os.path.join(DEFAULT_MODEL_DIR, f"bai01_mlp_neurons_{hidden}.pt")
+        checkpoint_path = os.path.join(models_dir, f"mlp_neurons_{hidden}.pt")
         save_checkpoint(model, filepath=checkpoint_path, metadata={
             "hidden": hidden,
             "params": param_count,
@@ -114,7 +120,7 @@ def run_bai01_neuron_study(neuron_list: Optional[List[int]] = None,
         })
 
     summary_df = pd.DataFrame(summary_rows)
-    results_path = os.path.join(DEFAULT_RESULTS_DIR, "bai01_neuron_comparison.json")
+    results_path = os.path.join(results_dir, "neuron_comparison.json")
     save_experiment_results(summary_df.to_dict(orient="records"), filepath=results_path)
 
     return {
@@ -132,6 +138,8 @@ def run_bai02_ablation_study(data_bundle: Dict[str, Any],
                              seed: int = DEFAULT_SEED,
                              device: str = DEFAULT_DEVICE,
                              study_name: str = "bai02_ablation",
+                             models_dir: str = DEFAULT_DAY01_TASK02_MODELS_DIR,
+                             results_dir: str = DEFAULT_DAY01_TASK02_RESULTS_DIR,
                              verbose: bool = False) -> Dict[str, Any]:
     """Execute ablation experiments varying depth, width, activations, and regularization.
 
@@ -142,12 +150,14 @@ def run_bai02_ablation_study(data_bundle: Dict[str, Any],
             seed           -- random generator seed (default DEFAULT_SEED);
             device         -- target computation device (default DEFAULT_DEVICE);
             study_name     -- identifier used for artifact naming (default 'bai02_ablation');
+            models_dir     -- destination directory for saved model weights;
+            results_dir    -- destination directory for benchmark reports;
             verbose        -- whether to output progress logs per epoch (default False).
     Output: dictionary containing model instances, histories, and summary DataFrame.
     Flow:   iterate across configuration specifications, construct ConfigurableMLP with requested
             dimensions, activation, and dropout, initialize optimizer with designated weight decay,
-            train model and capture training trajectories, serialize checkpoints to bin/models/,
-            synthesize comparative evaluation table, and serialize findings to bin/results/.
+            train model and capture training trajectories, serialize checkpoints to models_dir,
+            synthesize comparative evaluation table, and serialize findings to results_dir.
     """
     input_dim = data_bundle["input_dim"]
     num_classes = data_bundle["num_classes"]
@@ -191,7 +201,7 @@ def run_bai02_ablation_study(data_bundle: Dict[str, Any],
         models_dict[name] = model
         histories_dict[name] = history
 
-        checkpoint_path = os.path.join(DEFAULT_MODEL_DIR, f"{study_name}_{name}.pt")
+        checkpoint_path = os.path.join(models_dir, f"{name}.pt")
         save_checkpoint(model, filepath=checkpoint_path, metadata={
             "name": name,
             "hidden_dims": hidden_dims,
@@ -220,7 +230,7 @@ def run_bai02_ablation_study(data_bundle: Dict[str, Any],
         })
 
     summary_df = pd.DataFrame(summary_rows)
-    results_path = os.path.join(DEFAULT_RESULTS_DIR, f"{study_name}_summary.json")
+    results_path = os.path.join(results_dir, f"{study_name}_summary.json")
     save_experiment_results(summary_df.to_dict(orient="records"), filepath=results_path)
 
     return {
@@ -232,7 +242,7 @@ def run_bai02_ablation_study(data_bundle: Dict[str, Any],
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Experiment runner CLI.")
-    parser.add_argument("--task", type=str, default=DEFAULT_TASK, choices=["bai01", "bai02"], help="Task to execute.")
+    parser.add_argument("--task", type=str, default=DEFAULT_TASK, choices=["bai01", "bai02", "bai03"], help="Task to execute.")
     parser.add_argument("--epochs", type=int, default=10, help="Epoch count.")
     args = parser.parse_args()
 
@@ -240,7 +250,7 @@ if __name__ == "__main__":
         study = run_bai01_neuron_study(epochs=args.epochs, verbose=True)
         print("\nBai 01 Results:")
         print(study["summary_df"].to_string())
-    else:
+    elif args.task == "bai02":
         fashion_data = load_fashion_mnist_data(data_dir=DEFAULT_DATA_DIR, subset_size=2000)
         demo_cfgs = [
             {"name": "Depth_1", "hidden_dims": [64], "activation": "relu"},
@@ -249,4 +259,8 @@ if __name__ == "__main__":
         study = run_bai02_ablation_study(fashion_data, demo_cfgs, epochs=args.epochs, verbose=True)
         print("\nBai 02 Demo Results:")
         print(study["summary_df"].to_string())
+    else:
+        from srcs.pipelines.day03_task02_optimizer_comparison import compare_optimizers
+        print("\nBai 03 Optimizer and Early Stopping Study:")
+        compare_optimizers(epochs=args.epochs)
 

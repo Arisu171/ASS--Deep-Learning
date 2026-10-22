@@ -1,43 +1,76 @@
-"""Execute notebooks and write back cell outputs.
+"""Execute standardized notebooks and persist rendered cell outputs.
 
 CLI execution:
-  python temp/run_and_save_notebooks.py
+  python tools/notebooks_execute.py [--notebooks path1 path2 ...]
 
 Inputs:
   srcs/notebooks/*.ipynb
 
 Outputs:
-  Populated notebooks with rendered charts, tables, and stdout logs.
+  Populated notebooks with rendered charts, tables, and execution logs.
 """
 
 import os
+import argparse
+from typing import List, Optional
 import nbformat
 from nbclient import NotebookClient
 
-NOTEBOOKS = [
-    "srcs/notebooks/bai01_xay_dung_mlp.ipynb",
-    "srcs/notebooks/bai02_khao_sat_mlp.ipynb"
+DEFAULT_NOTEBOOKS = [
+    "srcs/notebooks/day01_task01_mlp_construction.ipynb",
+    "srcs/notebooks/day01_task02_mlp_exploration.ipynb",
+    "srcs/notebooks/day03_task01_training_loop.ipynb",
+    "srcs/notebooks/day03_task02_optimizer_comparison.ipynb"
 ]
+DEFAULT_TIMEOUT = 1200
 
-for nb_path in NOTEBOOKS:
+
+def execute_notebook(notebook_path: str, timeout: int = DEFAULT_TIMEOUT) -> None:
+    """Execute a single Jupyter Notebook and write evaluated outputs back to disk.
+
+    Input:  notebook_path -- relative or absolute string path to notebook file;
+            timeout       -- execution timeout in seconds per cell (default DEFAULT_TIMEOUT).
+    Output: None.
+    Flow:   read notebook content via nbformat, initialize NotebookClient pointing to the notebook folder,
+            execute all cells sequentially, and serialize populated notebook back to original path.
+    """
     print(f"\n==========================================")
-    print(f"Executing: {nb_path}")
+    print(f"Executing: {notebook_path}")
     print(f"==========================================")
-    with open(nb_path, "r", encoding="utf-8") as f:
+
+    with open(notebook_path, "r", encoding="utf-8") as f:
         nb = nbformat.read(f, as_version=4)
 
     client = NotebookClient(
         nb,
-        timeout=1200,
+        timeout=timeout,
         kernel_name="python3",
-        resources={"metadata": {"path": os.path.dirname(os.path.abspath(nb_path))}}
+        resources={"metadata": {"path": os.path.dirname(os.path.abspath(notebook_path))}}
     )
     client.execute()
 
-    with open(nb_path, "w", encoding="utf-8") as f:
+    with open(notebook_path, "w", encoding="utf-8") as f:
         nbformat.write(nb, f)
 
-    print(f"Successfully executed and saved: {nb_path}")
+    print(f"Successfully executed and saved: {notebook_path}")
 
-print("\nAll notebooks executed and verified successfully!")
 
+def run_all_notebooks(notebook_paths: Optional[List[str]] = None) -> None:
+    """Execute configured notebooks sequentially.
+
+    Input:  notebook_paths -- list of notebook file paths to execute (default DEFAULT_NOTEBOOKS).
+    Output: None.
+    Flow:   resolve targets, iterate through notebook list, and invoke execute_notebook for each.
+    """
+    targets = notebook_paths or DEFAULT_NOTEBOOKS
+    for nb_path in targets:
+        execute_notebook(nb_path)
+    print("\nAll notebooks executed and verified successfully!")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Notebook execution runner CLI.")
+    parser.add_argument("--notebooks", nargs="+", default=None, help="List of notebook paths to execute.")
+    args = parser.parse_args()
+
+    run_all_notebooks(notebook_paths=args.notebooks)

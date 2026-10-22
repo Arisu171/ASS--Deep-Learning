@@ -4,8 +4,7 @@ CLI execution:
   python -m srcs.libraries.serialization
 
 Inputs:
-  bin/models/ (checkpoint storage directory)
-  bin/results/ (serialized results directory)
+  PyTorch model instances and metric dictionaries
 
 Outputs:
   Saved PyTorch model weights (.pt) and JSON evaluation records (.json).
@@ -19,8 +18,8 @@ import torch
 from torch import nn
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-DEFAULT_MODEL_DIR = os.path.join(PROJECT_ROOT, "bin", "models")
-DEFAULT_RESULTS_DIR = os.path.join(PROJECT_ROOT, "bin", "results")
+DEFAULT_MODEL_DIR = os.path.join(PROJECT_ROOT, "bin", "day01", "task01", "models")
+DEFAULT_RESULTS_DIR = os.path.join(PROJECT_ROOT, "bin", "day01", "task01", "results")
 DEFAULT_CHECKPOINT_NAME = "mlp_checkpoint.pt"
 DEFAULT_RESULTS_NAME = "experiment_results.json"
 

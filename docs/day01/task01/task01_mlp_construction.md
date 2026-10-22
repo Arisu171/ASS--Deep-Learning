@@ -21,7 +21,7 @@ Chia tập: 960 mẫu để train, 240 mẫu để kiểm tra (validation).
 Dùng mạng MLP 2 tầng ẩn, thay đổi số neuron H:
 
 ```
-Input(2) → Linear → ReLU → Linear → ReLU → Output(2 lớp)
+Input(2) -> Linear -> ReLU -> Linear -> ReLU -> Output(2 lớp)
 ```
 
 Chạy 4 cấu hình: **H = 8, 32, 64, 128 neurons**, tất cả các thứ khác giữ nguyên (20 epoch, lr = 0.001).
@@ -30,12 +30,12 @@ Chạy 4 cấu hình: **H = 8, 32, 64, 128 neurons**, tất cả các thứ khá
 
 ## Kết quả
 
-| Mô hình        |   Neurons   |  Số tham số  |   Val Accuracy   |     Val F1     |   Thời gian   |
-| :--------------- | :----------: | :-------------: | :--------------: | :-------------: | :-------------: |
-| MLP_8            |      8      |       114       |      86.25%      |      0.862      |      0.93s      |
-| MLP_32           |      32      |      1,218      |      89.58%      |      0.896      |      0.91s      |
+| Mô hình | Neurons | Số tham số | Val Accuracy | Val F1 | Thời gian |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| MLP_8 | 8 | 114 | 86.25% | 0.862 | 0.93s |
+| MLP_32 | 32 | 1,218 | 89.58% | 0.896 | 0.91s |
 | **MLP_64** | **64** | **4,482** | **90.00%** | **0.900** | **0.88s** |
-| MLP_128          |     128     |     17,154     |      89.58%      |      0.896      |      0.97s      |
+| MLP_128 | 128 | 17,154 | 89.58% | 0.896 | 0.97s |
 
 ---
 

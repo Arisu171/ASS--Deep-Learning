@@ -7,7 +7,7 @@ Inputs:
   None
 
 Outputs:
-  bin/results/ (saved plot figures)
+  Rendered matplotlib plot figures.
 """
 
 import os
@@ -21,7 +21,7 @@ from torch import nn
 
 DEFAULT_FIGURE_DPI = 150
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-DEFAULT_RESULTS_DIR = os.path.join(PROJECT_ROOT, "bin", "results")
+DEFAULT_RESULTS_DIR = os.path.join(PROJECT_ROOT, "bin", "day01", "task01", "results")
 DEFAULT_MESH_RESOLUTION = 250
 
 
@@ -187,6 +187,131 @@ def plot_metrics_comparison(summary_df: pd.DataFrame,
         ax.set_xticks(positions)
         ax.set_xticklabels(labels, rotation=35, ha="right", fontsize=9)
         ax.grid(axis="y", linestyle=":", alpha=0.6)
+
+    fig.suptitle(title, fontsize=13, fontweight="bold", y=1.03)
+    plt.tight_layout()
+
+    if save_path:
+        ensure_directory(save_path)
+        fig.savefig(save_path, dpi=DEFAULT_FIGURE_DPI, bbox_inches="tight")
+
+    return fig
+
+
+def plot_confusion_matrix(cm: np.ndarray,
+                          class_names: Optional[List[str]] = None,
+                          title: str = "Confusion Matrix",
+                          normalize: bool = False,
+                          cmap: str = "Blues",
+                          save_path: Optional[str] = None) -> plt.Figure:
+    """Render a single annotated confusion matrix heatmap.
+
+    Input:  cm          -- 2D square numpy array representing confusion matrix counts;
+            class_names -- optional list of string labels for each class index;
+            title       -- figure title string (default 'Confusion Matrix');
+            normalize   -- whether to normalize counts by true row sums (default False);
+            cmap        -- colormap name string (default 'Blues');
+            save_path   -- optional file path string to save generated figure.
+    Output: matplotlib Figure instance containing the rendered confusion matrix.
+    Flow:   compute row-normalized matrix if requested, set up figure and axis,
+            draw imshow heatmap with colorbar, annotate each cell with value,
+            configure tick labels and axis titles, apply tight layout, and optionally save to disk.
+    """
+    n_classes = cm.shape[0]
+    display_names = class_names if class_names is not None else [str(i) for i in range(n_classes)]
+
+    if normalize:
+        row_sums = cm.sum(axis=1, keepdims=True)
+        row_sums[row_sums == 0] = 1
+        mat_display = cm.astype(float) / row_sums
+    else:
+        mat_display = cm
+
+    fig, ax = plt.subplots(figsize=(8, 7), dpi=DEFAULT_FIGURE_DPI)
+    vmax = 1.0 if normalize else np.max(cm)
+    im = ax.imshow(mat_display, interpolation="nearest", cmap=cmap, vmin=0, vmax=vmax)
+    cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    cbar.ax.tick_params(labelsize=9)
+
+    thresh = vmax / 2.0
+    for i in range(n_classes):
+        for j in range(n_classes):
+            val = mat_display[i, j]
+            color = "white" if val > thresh else "black"
+            text_str = f"{val:.2f}" if normalize else f"{int(val)}"
+            ax.text(j, i, text_str, ha="center", va="center", color=color, fontsize=8, fontweight="bold")
+
+    ax.set_xticks(np.arange(n_classes))
+    ax.set_yticks(np.arange(n_classes))
+    ax.set_xticklabels(display_names, rotation=45, ha="right", fontsize=9)
+    ax.set_yticklabels(display_names, fontsize=9)
+    ax.set_xlabel("Predicted Label", fontsize=10, fontweight="bold")
+    ax.set_ylabel("True Label", fontsize=10, fontweight="bold")
+    ax.set_title(title, fontsize=12, fontweight="bold", pad=12)
+
+    plt.tight_layout()
+    if save_path:
+        ensure_directory(save_path)
+        fig.savefig(save_path, dpi=DEFAULT_FIGURE_DPI, bbox_inches="tight")
+
+    return fig
+
+
+def plot_comparative_confusion_matrices(matrices_dict: Dict[str, np.ndarray],
+                                        class_names: Optional[List[str]] = None,
+                                        title: str = "Comparative Confusion Matrices",
+                                        normalize: bool = True,
+                                        cmap: str = "Blues",
+                                        save_path: Optional[str] = None) -> plt.Figure:
+    """Render multiple confusion matrix heatmaps side by side for comparative benchmarking.
+
+    Input:  matrices_dict -- dictionary mapping model or optimizer names to 2D confusion matrices;
+            class_names   -- optional list of string labels for each class index;
+            title         -- super title string for the overall figure;
+            normalize     -- whether to display row-normalized proportions (default True);
+            cmap          -- colormap name string (default 'Blues');
+            save_path     -- optional file path string to save generated figure.
+    Output: matplotlib Figure instance containing grid of subplots.
+    Flow:   determine subplot layout count, iterate over matrices rendering imshow heatmaps,
+            overlay text annotations per cell, format axes and tick labels,
+            attach super title, and optionally serialize image to disk.
+    """
+    num_models = len(matrices_dict)
+    first_cm = next(iter(matrices_dict.values()))
+    n_classes = first_cm.shape[0]
+    display_names = class_names if class_names is not None else [str(i) for i in range(n_classes)]
+
+    fig, axes = plt.subplots(1, num_models, figsize=(6.5 * num_models, 6.0), dpi=DEFAULT_FIGURE_DPI)
+    if num_models == 1:
+        axes = [axes]
+
+    for ax, (model_label, cm) in zip(axes, matrices_dict.items()):
+        if normalize:
+            row_sums = cm.sum(axis=1, keepdims=True)
+            row_sums[row_sums == 0] = 1
+            mat_display = cm.astype(float) / row_sums
+            vmax = 1.0
+        else:
+            mat_display = cm
+            vmax = np.max(cm)
+
+        im = ax.imshow(mat_display, interpolation="nearest", cmap=cmap, vmin=0, vmax=vmax)
+        thresh = vmax / 2.0
+
+        for i in range(n_classes):
+            for j in range(n_classes):
+                val = mat_display[i, j]
+                color = "white" if val > thresh else "black"
+                text_str = f"{val:.2f}" if normalize else f"{int(val)}"
+                ax.text(j, i, text_str, ha="center", va="center", color=color, fontsize=7, fontweight="bold")
+
+        ax.set_xticks(np.arange(n_classes))
+        ax.set_yticks(np.arange(n_classes))
+        ax.set_xticklabels(display_names, rotation=45, ha="right", fontsize=8)
+        ax.set_yticklabels(display_names, fontsize=8)
+        ax.set_xlabel("Predicted Label", fontsize=9, fontweight="bold")
+        ax.set_ylabel("True Label", fontsize=9, fontweight="bold")
+        ax.set_title(model_label, fontsize=11, fontweight="bold")
 
     fig.suptitle(title, fontsize=13, fontweight="bold", y=1.03)
     plt.tight_layout()

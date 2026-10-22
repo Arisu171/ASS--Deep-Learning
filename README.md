@@ -1,121 +1,146 @@
-# Deep Learning Practice: MLP Architecture and Hyperparameter Analysis
+# Deep Learning Practice: Multi-Layer Perceptrons and Optimization
 
-This repository contains modular implementations and experimental studies analyzing the mechanics of Multi-Layer Perceptrons (MLP), evaluating the empirical effects of layer depth, layer width, activation functions, and regularization techniques (Dropout and Weight Decay).
+This repository contains modular implementations, experimental studies, and rigorous empirical benchmarks exploring the mechanics of Multi-Layer Perceptrons (MLP), hyperparameter sensitivity, optimization algorithms, and regularization techniques across synthetic and real-world datasets.
 
 ---
 
 ## 1. Project Organization and Architecture
 
-In accordance with clean engineering design, the codebase is partitioned into distinct tiers:
+In accordance with [STRUCTURE.md](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/STRUCTURE.md), the codebase is organized into distinct functional tiers:
 
 ```text
 ASS--Deep-Learning/
-├── bin/                              # Build outputs and generated model artifacts
-│   ├── models/                       # Serialized PyTorch model checkpoints (.pt)
-│   └── results/                      # Tables (.md, .csv), metrics (.json), plots (.png)
-├── data/                             # Raw and processed datasets (e.g. FashionMNIST)
-├── srcs/
-│   ├── libraries/                    # Core foundation building blocks (zero inline comments)
+├── .agents/                          # Agent harness, skills, and rule specifications
+│   └── rules/                        # Coding and repository standards (.mdc)
+├── bin/                              # Generated binaries and experiment artifacts
+│   ├── day01/                        # Day 1 artifacts (task01, task02)
+│   ├── day02/                        # Day 2 synthetic evidence plots
+│   └── day03/                        # Day 3 artifacts (task01, task02)
+├── data/                             # Raw and downloaded datasets cached at project root
+├── docs/                             # Analytical reports and documentation
+│   ├── day01/                        # Day 1 reports (task01, task02)
+│   ├── day02/                        # Day 2 D2L deep learning chapters (task01 to task05)
+│   └── day03/                        # Day 3 reports (task01, task02)
+├── srcs/                             # Core source code implementations
+│   ├── libraries/                    # Reusable low-level foundation building blocks
 │   │   ├── seeding.py                # Deterministic random seed controller
-│   │   ├── datasets.py               # Data loaders for make_moons and FashionMNIST
+│   │   ├── datasets.py               # Data loaders for make_moons and Fashion-MNIST
 │   │   ├── models.py                 # Configurable MLP and parameter introspection
-│   │   ├── metrics.py                # Accuracy and Macro-F1 score calculation
-│   │   ├── training.py               # Train and evaluation loops with timing
-│   │   ├── serialization.py          # Model and metric persistence to disk
+│   │   ├── metrics.py                # Evaluation metrics (Accuracy, Macro-F1)
+│   │   ├── training.py               # 5-step PyTorch training loops and validation
+│   │   ├── serialization.py          # Model checkpoint and metric persistence
 │   │   └── common.py                 # Convenience library wrappers
 │   ├── utilities/                    # High-level aggregated workflows and orchestrators
-│   │   ├── experiments.py            # Automated experiment orchestrators for Bai 01 and Bai 02
-│   │   ├── visualization.py          # Decision boundary, learning curves, and bar plots
+│   │   ├── experiments.py            # Automated multi-configuration study orchestrators
+│   │   ├── visualization.py          # Matplotlib charting and decision boundary rendering
 │   │   └── tables.py                 # Tabular markdown and CSV formatting utilities
-│   └── notebooks/                    # Interactive step-by-step experiment notebooks
-│       ├── bai01_xay_dung_mlp.ipynb  # Bai 1: make_moons MLP neuron width analysis
-│       └── bai02_khao_sat_mlp.ipynb  # Bai 2: Comprehensive MLP ablation and regularization study
-├── requirements.txt                  # Virtual environment dependencies
+│   ├── pipelines/                    # Single-task standalone executable pipelines
+│   │   ├── day01_task01_mlp_construction.py
+│   │   ├── day01_task02_mlp_exploration.py
+│   │   ├── day02_task_evidence_generation.py
+│   │   ├── day03_task01_training_loop.py
+│   │   └── day03_task02_optimizer_comparison.py
+│   └── notebooks/                    # Interactive walkthrough Jupyter Notebooks
+│       ├── day01_task01_mlp_construction.ipynb
+│       ├── day01_task02_mlp_exploration.ipynb
+│       ├── day03_task01_training_loop.ipynb
+│       └── day03_task02_optimizer_comparison.ipynb
+├── temp/                             # Reference input files
+├── tools/                            # Code generation, automation, and validation scripts
+│   ├── notebooks_generate.py         # Notebook generator script
+│   └── notebooks_execute.py          # Notebook execution and output persistence runner
+├── .gitignore                        # Git ignore patterns
+├── AGENTS.md                         # Top-level agent workspace rules
 ├── COMMENT.md                        # Strict commenting and docstring coding standards
-└── README.md                         # Project documentation and summary
+├── README.md                         # Project documentation and summary
+├── requirements.txt                  # Virtual environment dependencies
+└── STRUCTURE.md                      # Repository layout and naming specification
 ```
 
 ---
 
-## 2. Standards Compliance (COMMENT.md)
+## 2. Standards Compliance
 
-All Python modules in `srcs/` strictly enforce the standards specified in `COMMENT.md`:
+All Python modules and pipelines in this repository strictly enforce the rules documented in `COMMENT.md` and `STRUCTURE.md`:
+- **English-Only Naming**: All files, directories, symbols, variables, functions, and documentation are strictly in English.
 - **Zero Inline Comments**: No inline comments inside function bodies or on executable code lines. Code is self-documenting.
-- **Module-Level Docstrings**: Structured on line 1 with purpose, CLI usage, inputs, and outputs.
-- **Three-Section Docstrings**: Every function and class documents `Summary`, `Input`, `Output`, and `Flow`.
-- **Configurable Constants**: All hyperparameters declared as `DEFAULT_*` constants at top of modules.
+- **Four-Section Docstrings**: Every public function and class documents `Summary`, `Input`, `Output`, and `Flow`.
+- **Configurable Constants**: All hyperparameters, paths, and thresholds are declared as `DEFAULT_*` constants directly after imports.
 - **No Em-Dashes**: Prose exclusively uses colons, commas, periods, or parentheses.
 
 ---
 
-## 3. Bai 1: Xay Dung MLP Tren `make_moons`
+## 3. Experimental Curriculum and Results
 
-### 3.1 Objective
-Binary classification of two interleaving half circles (`make_moons`, 1,200 samples, noise = 0.28). Compare models with hidden widths of **8, 32, 64, and 128** neurons across Loss, Accuracy, Macro-F1, Parameter count, and Training Latency.
+### 3.1 Day 1 Task 1: MLP Construction on `make_moons`
+- **Objective**: Binary classification of two interleaving half circles (`make_moons`, 1,200 samples, noise = 0.28). Compare models with hidden widths of **8, 32, 64, and 128** neurons across Loss, Accuracy, Macro-F1, Parameter count, and Training Latency.
+- **Key Findings**:
+  - **8 Neurons**: Low capacity (114 parameters). The decision boundary is coarse, resulting in mild underfitting with lower validation accuracy (86.25%).
+  - **32 and 64 Neurons (Sweet Spot)**: Smooth, continuous non-linear boundaries conforming cleanly to the data distribution. Reaches peak Validation Accuracy (90.00%) and Macro-F1 (0.8999).
+  - **128 Neurons**: High capacity (17,154 parameters). Train loss decreases further, but validation accuracy stabilizes around 89.58% without generalization gains, showing early local curvature around individual noisy points.
+- **Pipeline & Notebook**:
+  - Pipeline: [srcs/pipelines/day01_task01_mlp_construction.py](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/srcs/pipelines/day01_task01_mlp_construction.py)
+  - Notebook: [srcs/notebooks/day01_task01_mlp_construction.ipynb](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/srcs/notebooks/day01_task01_mlp_construction.ipynb)
+  - Documentation: [docs/day01/task01/task01_mlp_construction.md](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/docs/day01/task01/task01_mlp_construction.md)
+  - Artifacts: [bin/day01/task01/](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/bin/day01/task01/)
 
-### 3.2 Quantitative Results
+### 3.2 Day 1 Task 2: Comprehensive MLP Exploration (Fashion-MNIST)
+- **Objective**: 10-class image classification on Fashion-MNIST (784 input dimensions). Systematic ablation across:
+  1. **Network Depth**: 1, 2, 3, and 4 hidden layers (128 neurons each).
+  2. **Network Width**: 32, 64, 128, and 256 neurons per hidden layer (2 hidden layers).
+  3. **Activation Functions**: ReLU vs Tanh vs Sigmoid.
+  4. **Regularization**: Baseline (No Reg) vs Dropout ($p=0.3$) vs Weight Decay ($\lambda = 10^{-4}$) vs Combined.
+- **Key Findings**:
+  - **Sigmoid Saturation**: Suffers from gradient vanishing in deeper networks, converging significantly slower than ReLU.
+  - **Baseline Overfitting**: Deep unregularized networks show diverging training and validation loss curves.
+  - **Regularization Benefit**: Dropout ($p=0.3$) and Weight Decay successfully suppress overfitting, closing the generalization gap.
+- **Pipeline & Notebook**:
+  - Pipeline: [srcs/pipelines/day01_task02_mlp_exploration.py](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/srcs/pipelines/day01_task02_mlp_exploration.py)
+  - Notebook: [srcs/notebooks/day01_task02_mlp_exploration.ipynb](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/srcs/notebooks/day01_task02_mlp_exploration.ipynb)
+  - Documentation: [docs/day01/task02/task02_mlp_exploration.md](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/docs/day01/task02/task02_mlp_exploration.md)
+  - Artifacts: [bin/day01/task02/](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/bin/day01/task02/)
 
-| Model | Hidden Neurons | Parameters | Train Loss | Val Loss | Train Accuracy | Val Accuracy | Val Macro-F1 | Time (s) |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **MLP_hidden_8** | 8 | 114 | 0.3158 | 0.3734 | 0.8740 | 0.8625 | 0.8624 | 0.931 |
-| **MLP_hidden_32** | 32 | 1,218 | 0.2105 | 0.2748 | 0.9062 | 0.8958 | 0.8957 | 0.909 |
-| **MLP_hidden_64** | 64 | 4,482 | 0.1892 | 0.2752 | 0.9208 | 0.9000 | 0.8999 | 0.876 |
-| **MLP_hidden_128** | 128 | 17,154 | 0.1835 | 0.2784 | 0.9177 | 0.8958 | 0.8957 | 0.971 |
+### 3.3 Day 2: D2L Theoretical Foundations and Empirical Evidence
+- **Coverage**: Chapters 1 through 5 of Dive into Deep Learning (D2L):
+  - Task 1: Introduction and Deep Learning Overview
+  - Task 2: Preliminaries (Data Manipulation, Linear Algebra, Calculus, Autograd, Probability)
+  - Task 3: Linear Neural Networks (Linear Regression, Concise Implementation, Weight Decay)
+  - Task 4: Softmax Regression and Distribution Shifts
+  - Task 5: Multilayer Perceptrons, Overfitting/Underfitting, Kaggle House Prices
+- **Pipeline & Documentation**:
+  - Pipeline: [srcs/pipelines/day02_task_evidence_generation.py](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/srcs/pipelines/day02_task_evidence_generation.py)
+  - Documentation: [docs/day02/](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/docs/day02/)
+  - Artifacts: [bin/day02/](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/bin/day02/)
 
-### 3.3 Visualizations and Findings
-- **8 Neurons**: Low capacity (114 parameters). The decision boundary is coarse, resulting in mild underfitting with lower validation accuracy (86.25%).
-- **32 and 64 Neurons (Optimal Sweet Spot)**: Generates a smooth, continuous non-linear boundary conforming cleanly to the data distribution. Reaches the peak Validation Accuracy (90.00%) and Macro-F1 (0.8999) with balanced computational resource footprint.
-- **128 Neurons**: High capacity (17,154 parameters, roughly 4x larger than 64 neurons). Train loss decreases further, but validation accuracy stabilizes around 89.58% without generalization gains, showing early local curvature around individual noisy points.
-- Artifacts generated:
-  - Checkpoint: `bin/models/bai01_mlp_neurons_64.pt`
-  - Visualizations: `bin/results/bai01_decision_boundaries.png`, `bin/results/bai01_learning_curves.png`, `bin/results/bai01_metrics_comparison.png`.
+### 3.4 Day 3 Task 1: Standard PyTorch Training Loop and Learning Rate Exploration
+- **Objective**: Implement the standard 5-step PyTorch training cycle (`zero_grad` -> `forward` -> `loss` -> `backward` -> `optimizer.step`) and evaluate sensitivity across learning rates ($0.01$, $0.001$, $0.0001$).
+- **Key Findings**:
+  - $LR = 0.01$: Fast initial descent but oscillates around the minimum with high loss variance.
+  - $LR = 0.001$: Optimal balance of stability and convergence speed, achieving peak validation accuracy (~85.10%).
+  - $LR = 0.0001$: Steps are too small, lagging significantly behind within 5 epochs.
+- **Pipeline & Notebook**:
+  - Pipeline: [srcs/pipelines/day03_task01_training_loop.py](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/srcs/pipelines/day03_task01_training_loop.py)
+  - Notebook: [srcs/notebooks/day03_task01_training_loop.ipynb](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/srcs/notebooks/day03_task01_training_loop.ipynb)
+  - Documentation: [docs/day03/task01/task01_training_loop.md](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/docs/day03/task01/task01_training_loop.md)
+  - Artifacts: [bin/day03/task01/](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/bin/day03/task01/)
+
+### 3.5 Day 3 Task 2: Optimizer Comparison and Early Stopping
+- **Objective**: Comparative empirical evaluation of SGD, SGD with Momentum ($\beta = 0.9$), and Adam, coupled with an Early Stopping mechanism (`patience = 3`, `min_delta = 1e-4`).
+- **Key Findings**:
+  - **Adam**: Fastest convergence, adapting per-parameter learning rates and reaching the lowest loss in the fewest epochs.
+  - **SGD with Momentum**: Overcomes ravine oscillations, matching or exceeding Adam in final validation generalization (~85.47%).
+  - **Early Stopping**: Effectively intercepts overfitting and restores optimal model weights when validation loss starts degrading.
+- **Pipeline & Notebook**:
+  - Pipeline: [srcs/pipelines/day03_task02_optimizer_comparison.py](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/srcs/pipelines/day03_task02_optimizer_comparison.py)
+  - Notebook: [srcs/notebooks/day03_task02_optimizer_comparison.ipynb](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/srcs/notebooks/day03_task02_optimizer_comparison.ipynb)
+  - Documentation: [docs/day03/task02/task02_optimizer_comparison.md](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/docs/day03/task02/task02_optimizer_comparison.md)
+  - Artifacts: [bin/day03/task02/](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/bin/day03/task02/)
 
 ---
 
-## 4. Bai 2: Khao Sat Toan Dien MLP (Fashion-MNIST)
+## 4. Execution Guide
 
-### 4.1 Objective
-Multi-class classification on the Fashion-MNIST dataset (10 categories, 784 flattened input dimensions). Systematically assess:
-1. **Network Depth**: 1, 2, 3, and 4 hidden layers (128 neurons each).
-2. **Network Width**: 32, 64, 128, and 256 neurons per hidden layer (2 hidden layers).
-3. **Activation Functions**: ReLU vs Tanh vs Sigmoid.
-4. **Regularization (Advanced)**: Baseline (No Reg) vs Dropout ($p=0.3$) vs Weight Decay ($\lambda = 10^{-4}$) vs Combined.
-
-### 4.2 Quantitative Results
-
-| Experiment | Hidden Layers | Num Layers | Activation | Dropout | Weight Decay | Parameters | Train Loss | Val Loss | Train Acc | Val Acc | Val Macro-F1 | Time (s) |
-| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Depth_1_Layer** | [128] | 1 | relu | 0.0 | 0.0 | 101,770 | 0.2107 | 0.4431 | 0.9247 | 0.8529 | 0.8534 | 33.94 |
-| **Depth_2_Layers** | [128, 128] | 2 | relu | 0.0 | 0.0 | 118,282 | 0.2162 | 0.4966 | 0.9192 | 0.8436 | 0.8433 | 35.69 |
-| **Depth_3_Layers** | [128, 128, 128] | 3 | relu | 0.0 | 0.0 | 134,794 | 0.2269 | 0.4680 | 0.9160 | 0.8489 | 0.8508 | 35.72 |
-| **Depth_4_Layers** | [128, 128, 128, 128] | 4 | relu | 0.0 | 0.0 | 151,306 | 0.2595 | 0.4883 | 0.8980 | 0.8380 | 0.8418 | 35.50 |
-| **Width_32_Neurons** | [32, 32] | 2 | relu | 0.0 | 0.0 | 26,506 | 0.3056 | 0.4632 | 0.8878 | 0.8389 | 0.8373 | 33.93 |
-| **Width_64_Neurons** | [64, 64] | 2 | relu | 0.0 | 0.0 | 55,050 | 0.2498 | 0.4483 | 0.9088 | 0.8467 | 0.8479 | 34.68 |
-| **Width_128_Neurons** | [128, 128] | 2 | relu | 0.0 | 0.0 | 118,282 | 0.2162 | 0.4966 | 0.9192 | 0.8436 | 0.8433 | 34.43 |
-| **Width_256_Neurons** | [256, 256] | 2 | relu | 0.0 | 0.0 | 269,322 | 0.1783 | 0.4871 | 0.9312 | 0.8530 | 0.8536 | 35.39 |
-| **Activation_ReLU** | [128, 64] | 2 | relu | 0.0 | 0.0 | 109,386 | 0.2259 | 0.4544 | 0.9165 | 0.8472 | 0.8474 | 34.84 |
-| **Activation_Tanh** | [128, 64] | 2 | tanh | 0.0 | 0.0 | 109,386 | 0.2208 | 0.4480 | 0.9180 | 0.8488 | 0.8487 | 35.12 |
-| **Activation_Sigmoid** | [128, 64] | 2 | sigmoid | 0.0 | 0.0 | 109,386 | 0.3288 | 0.4371 | 0.8882 | 0.8499 | 0.8490 | 34.79 |
-| **Baseline_NoReg** | [256, 128, 64] | 3 | relu | 0.0 | 0.0 | 242,762 | 0.1602 | 0.5141 | 0.9388 | 0.8516 | 0.8525 | 44.63 |
-| **Dropout_p03** | [256, 128, 64] | 3 | relu | 0.3 | 0.0 | 242,762 | 0.3305 | 0.4530 | 0.8790 | 0.8498 | 0.8482 | 45.92 |
-| **WeightDecay_1e4** | [256, 128, 64] | 3 | relu | 0.0 | 0.0001 | 242,762 | 0.1695 | 0.5181 | 0.9382 | 0.8504 | 0.8509 | 51.37 |
-| **Combined_Drop_WD** | [256, 128, 64] | 3 | relu | 0.3 | 0.0001 | 242,762 | 0.3333 | 0.4532 | 0.8753 | 0.8493 | 0.8463 | 58.02 |
-
-### 4.3 Analysis of Underfitting and Overfitting
-1. **Underfitting Dynamics**:
-   - **Sigmoid Saturation**: The Sigmoid activation suffers from gradient vanishing in deeper networks as activations saturate outside $[-2, 2]$. Consequently, Train Loss converges much more slowly (0.3288 vs 0.2259 for ReLU).
-   - **Small Width**: An MLP with only 32 neurons per layer lacks representation capacity, showing higher training loss (0.3056) and lower overall accuracy.
-2. **Overfitting Dynamics**:
-   - **Baseline Unregularized Network**: For a deep network (`[256, 128, 64]`), Train Loss drops aggressively to 0.1602 (Train Accuracy 93.88%), but Validation Loss balloons to 0.5141. The prominent divergence between training and validation loss curves is the definitive hallmark of overfitting.
-3. **Mitigation Through Regularization**:
-   - **Dropout ($p=0.3$)**: Successfully suppresses overfitting. Validation loss drops from 0.5141 down to 0.4530. The generalization gap narrows significantly because randomly masking activations prevents co-adaptation of features.
-   - **Combined Regularization**: Pairing Dropout with Weight Decay ($L_2$ regularization) yields a stable model with well-behaved validation trajectories.
-
----
-
-## 5. Execution Guide
-
-### 5.1 Setting up Environment
+### 4.1 Environment Setup
 ```powershell
 # Create virtual environment
 python -m venv .venv
@@ -123,21 +148,35 @@ python -m venv .venv
 # Activate environment
 .venv\Scripts\Activate.ps1
 
-# Install requirements
+# Install dependencies
 pip install -r requirements.txt
 ```
 
-### 5.2 Running via CLI
-```powershell
-# Run Bai 01 (make_moons neuron analysis)
-python -m srcs.utilities.experiments --task bai01 --epochs 20
+### 4.2 Running Standalone Pipelines
+Each pipeline can be executed independently from the repository root:
 
-# Run Bai 02 (Fashion-MNIST ablation study)
-python -m srcs.utilities.experiments --task bai02 --epochs 12
+```powershell
+# Day 1 Task 1: MLP Construction on make_moons
+python -m srcs.pipelines.day01_task01_mlp_construction --epochs 20
+
+# Day 1 Task 2: Comprehensive MLP Ablation on Fashion-MNIST
+python -m srcs.pipelines.day01_task02_mlp_exploration --epochs 12
+
+# Day 2: D2L Evidence Generation
+python -m srcs.pipelines.day02_task_evidence_generation
+
+# Day 3 Task 1: Training Loop and Learning Rate Benchmarks
+python -m srcs.pipelines.day03_task01_training_loop --epochs 5
+
+# Day 3 Task 2: Optimizer Comparison and Early Stopping
+python -m srcs.pipelines.day03_task02_optimizer_comparison --epochs 12
 ```
 
-### 5.3 Interactive Exploration via Jupyter
-Launch Jupyter or open directly in VS Code:
-- [srcs/notebooks/bai01_xay_dung_mlp.ipynb](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/srcs/notebooks/bai01_xay_dung_mlp.ipynb)
-- [srcs/notebooks/bai02_khao_sat_mlp.ipynb](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/srcs/notebooks/bai02_khao_sat_mlp.ipynb)
+### 4.3 Notebook Generation and Automated Verification
+```powershell
+# Regenerate all standardized notebooks
+.venv\Scripts\python.exe tools/notebooks_generate.py
 
+# Execute all notebooks end-to-end and persist outputs
+.venv\Scripts\python.exe tools/notebooks_execute.py
+```

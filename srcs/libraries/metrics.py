@@ -10,12 +10,40 @@ Outputs:
   Console output of sample metric calculations.
 """
 
-from typing import Dict, Union
+from typing import Dict, Union, Optional
 import numpy as np
 import torch
-from sklearn.metrics import accuracy_score, f1_score
+from sklearn.metrics import accuracy_score, f1_score, confusion_matrix
 
 DEFAULT_AVERAGE_MODE = "macro"
+
+
+def compute_confusion_matrix(y_true: Union[torch.Tensor, np.ndarray],
+                             y_pred: Union[torch.Tensor, np.ndarray],
+                             normalize: Optional[str] = None) -> np.ndarray:
+    """Compute multi-class confusion matrix from ground truth labels and predictions.
+
+    Input:  y_true    -- ground truth labels as 1D tensor or numpy array;
+            y_pred    -- predicted class labels as 1D tensor or numpy array;
+            normalize -- normalization mode: 'true', 'pred', 'all', or None (default None).
+    Output: 2D numpy array representing confusion matrix of shape (n_classes, n_classes).
+    Flow:   convert tensor inputs to numpy arrays, flatten to 1D vectors,
+            invoke sklearn confusion_matrix with normalization option, and return matrix.
+    """
+    if isinstance(y_true, torch.Tensor):
+        y_true_np = y_true.detach().cpu().numpy()
+    else:
+        y_true_np = np.asarray(y_true)
+
+    if isinstance(y_pred, torch.Tensor):
+        y_pred_np = y_pred.detach().cpu().numpy()
+    else:
+        y_pred_np = np.asarray(y_pred)
+
+    y_true_flat = y_true_np.reshape(-1)
+    y_pred_flat = y_pred_np.reshape(-1)
+
+    return confusion_matrix(y_true_flat, y_pred_flat, normalize=normalize)
 
 
 def calculate_metrics(y_true: Union[torch.Tensor, np.ndarray],
@@ -56,5 +84,7 @@ if __name__ == "__main__":
     sample_true = np.array([0, 1, 0, 1, 1, 0])
     sample_pred = np.array([0, 1, 0, 0, 1, 0])
     metrics_result = calculate_metrics(sample_true, sample_pred)
+    cm_result = compute_confusion_matrix(sample_true, sample_pred)
     print(f"Metrics test: Accuracy = {metrics_result['accuracy']:.4f}, Macro-F1 = {metrics_result['macro_f1']:.4f}")
+    print(f"Confusion Matrix:\n{cm_result}")
 
