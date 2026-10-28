@@ -15,12 +15,14 @@ ASS--Deep-Learning/
 ├── bin/                              # Generated binaries and experiment artifacts
 │   ├── day01/                        # Day 1 artifacts (task01, task02)
 │   ├── day02/                        # Day 2 synthetic evidence plots
-│   └── day03/                        # Day 3 artifacts (task01, task02)
+│   ├── day03/                        # Day 3 artifacts (task01, task02)
+│   └── day04/                        # Day 4 artifacts (task01, task02)
 ├── data/                             # Raw and downloaded datasets cached at project root
 ├── docs/                             # Analytical reports and documentation
 │   ├── day01/                        # Day 1 reports (task01, task02)
 │   ├── day02/                        # Day 2 D2L deep learning chapters (task01 to task05)
-│   └── day03/                        # Day 3 reports (task01, task02)
+│   ├── day03/                        # Day 3 reports (task01, task02)
+│   └── day04/                        # Day 4 reports (task01, task02)
 ├── srcs/                             # Core source code implementations
 │   ├── libraries/                    # Reusable low-level foundation building blocks
 │   │   ├── seeding.py                # Deterministic random seed controller
@@ -39,12 +41,16 @@ ASS--Deep-Learning/
 │   │   ├── day01_task02_mlp_exploration.py
 │   │   ├── day02_task_evidence_generation.py
 │   │   ├── day03_task01_training_loop.py
-│   │   └── day03_task02_optimizer_comparison.py
+│   │   ├── day03_task02_optimizer_comparison.py
+│   │   ├── day04_task01_cnn_fashionmnist.py
+│   │   └── day04_task02_cnn_variants.py
 │   └── notebooks/                    # Interactive walkthrough Jupyter Notebooks
 │       ├── day01_task01_mlp_construction.ipynb
 │       ├── day01_task02_mlp_exploration.ipynb
 │       ├── day03_task01_training_loop.ipynb
-│       └── day03_task02_optimizer_comparison.ipynb
+│       ├── day03_task02_optimizer_comparison.ipynb
+│       ├── day04_task01_cnn_fashionmnist.ipynb
+│       └── day04_task02_cnn_variants.ipynb
 ├── temp/                             # Reference input files
 ├── tools/                            # Code generation, automation, and validation scripts
 │   ├── notebooks_generate.py         # Notebook generator script
@@ -62,6 +68,7 @@ ASS--Deep-Learning/
 ## 2. Standards Compliance
 
 All Python modules and pipelines in this repository strictly enforce the rules documented in `COMMENT.md` and `STRUCTURE.md`:
+
 - **English-Only Naming**: All files, directories, symbols, variables, functions, and documentation are strictly in English.
 - **Zero Inline Comments**: No inline comments inside function bodies or on executable code lines. Code is self-documenting.
 - **Four-Section Docstrings**: Every public function and class documents `Summary`, `Input`, `Output`, and `Flow`.
@@ -73,6 +80,7 @@ All Python modules and pipelines in this repository strictly enforce the rules d
 ## 3. Experimental Curriculum and Results
 
 ### 3.1 Day 1 Task 1: MLP Construction on `make_moons`
+
 - **Objective**: Binary classification of two interleaving half circles (`make_moons`, 1,200 samples, noise = 0.28). Compare models with hidden widths of **8, 32, 64, and 128** neurons across Loss, Accuracy, Macro-F1, Parameter count, and Training Latency.
 - **Key Findings**:
   - **8 Neurons**: Low capacity (114 parameters). The decision boundary is coarse, resulting in mild underfitting with lower validation accuracy (86.25%).
@@ -85,6 +93,7 @@ All Python modules and pipelines in this repository strictly enforce the rules d
   - Artifacts: [bin/day01/task01/](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/bin/day01/task01/)
 
 ### 3.2 Day 1 Task 2: Comprehensive MLP Exploration (Fashion-MNIST)
+
 - **Objective**: 10-class image classification on Fashion-MNIST (784 input dimensions). Systematic ablation across:
   1. **Network Depth**: 1, 2, 3, and 4 hidden layers (128 neurons each).
   2. **Network Width**: 32, 64, 128, and 256 neurons per hidden layer (2 hidden layers).
@@ -101,6 +110,7 @@ All Python modules and pipelines in this repository strictly enforce the rules d
   - Artifacts: [bin/day01/task02/](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/bin/day01/task02/)
 
 ### 3.3 Day 2: D2L Theoretical Foundations and Empirical Evidence
+
 - **Coverage**: Chapters 1 through 5 of Dive into Deep Learning (D2L):
   - Task 1: Introduction and Deep Learning Overview
   - Task 2: Preliminaries (Data Manipulation, Linear Algebra, Calculus, Autograd, Probability)
@@ -113,6 +123,7 @@ All Python modules and pipelines in this repository strictly enforce the rules d
   - Artifacts: [bin/day02/](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/bin/day02/)
 
 ### 3.4 Day 3 Task 1: Standard PyTorch Training Loop and Learning Rate Exploration
+
 - **Objective**: Implement the standard 5-step PyTorch training cycle (`zero_grad` -> `forward` -> `loss` -> `backward` -> `optimizer.step`) and evaluate sensitivity across learning rates ($0.01$, $0.001$, $0.0001$).
 - **Key Findings**:
   - $LR = 0.01$: Fast initial descent but oscillates around the minimum with high loss variance.
@@ -125,6 +136,7 @@ All Python modules and pipelines in this repository strictly enforce the rules d
   - Artifacts: [bin/day03/task01/](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/bin/day03/task01/)
 
 ### 3.5 Day 3 Task 2: Optimizer Comparison and Early Stopping
+
 - **Objective**: Comparative empirical evaluation of SGD, SGD with Momentum ($\beta = 0.9$), and Adam, coupled with an Early Stopping mechanism (`patience = 3`, `min_delta = 1e-4`).
 - **Key Findings**:
   - **Adam**: Fastest convergence, adapting per-parameter learning rates and reaching the lowest loss in the fewest epochs.
@@ -136,11 +148,60 @@ All Python modules and pipelines in this repository strictly enforce the rules d
   - Documentation: [docs/day03/task02/task02_optimizer_comparison.md](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/docs/day03/task02/task02_optimizer_comparison.md)
   - Artifacts: [bin/day03/task02/](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/bin/day03/task02/)
 
+### 3.6 Day 4 Task 1: MLP vs 2-Block CNN on Fashion-MNIST
+
+- **Objective**: Benchmark MLP against a 2-block CNN under matched parameter budgets (~204k parameters) on Fashion-MNIST.
+- **Key Findings**:
+  - **CNN**: Achieves 86.08% validation accuracy (vs 82.92% for MLP), leveraging translation equivariance and local receptive fields.
+  - **Trade-off**: MLP is ~2x faster per epoch on CPU due to simple matrix multiplications, but CNN generalizes far better.
+- **Pipeline & Notebook**:
+  - Pipeline: [srcs/pipelines/day04_task01_cnn_fashionmnist.py](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/srcs/pipelines/day04_task01_cnn_fashionmnist.py)
+  - Notebook: [srcs/notebooks/day04_task01_cnn_fashionmnist.ipynb](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/srcs/notebooks/day04_task01_cnn_fashionmnist.ipynb)
+  - Documentation: [docs/day04/task01/task01_cnn_fashionmnist.md](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/docs/day04/task01/task01_cnn_fashionmnist.md)
+  - Artifacts: [bin/day04/task01/](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/bin/day04/task01/)
+
+### 3.7 Day 4 Task 2: CNN Architectural Variants Ablation Study
+
+- **Objective**: Systematically investigate kernel size ($3 \times 3$ vs $5 \times 5$), channel depth (8 vs 16 vs 32), Batch Normalization, and Dropout on Fashion-MNIST.
+- **Key Findings**:
+  - **BatchNorm**: Best overall configuration (88.00% val acc, 86.59% official test acc), stabilizing internal covariate shift with only 96 extra parameters.
+  - **Channel Scaling**: Scaling from 8 to 32 channels improves accuracy but doubles parameter count and runtime.
+- **Pipeline & Notebook**:
+  - Pipeline: [srcs/pipelines/day04_task02_cnn_variants.py](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/srcs/pipelines/day04_task02_cnn_variants.py)
+  - Notebook: [srcs/notebooks/day04_task02_cnn_variants.ipynb](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/srcs/notebooks/day04_task02_cnn_variants.ipynb)
+  - Documentation: [docs/day04/task02/task02_cnn_variants.md](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/docs/day04/task02/task02_cnn_variants.md)
+  - Artifacts: [bin/day04/task02/](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/bin/day04/task02/)
+
+### 3.8 Day 5 Task 1: ResNet18 Transfer Learning on CIFAR-10
+
+- **Objective**: Compare frozen backbone feature extraction versus Layer 4 fine-tuning using ImageNet-pretrained ResNet18 on small CIFAR-10 splits (2,000 train samples).
+- **Key Findings**:
+  - **Frozen Backbone**: Highly stable, updates only 5,130 parameters, achieving 80.20% validation accuracy with minimal overfitting risk.
+  - **Fine-tuning Layer 4**: Converges faster and peaks higher (82.80% at epoch 3), but shows severe overfitting by epoch 4 if not stopped early.
+- **Pipeline & Notebook**:
+  - Pipeline: [srcs/pipelines/day05_task01_transfer_learning.py](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/srcs/pipelines/day05_task01_transfer_learning.py)
+  - Notebook: [srcs/notebooks/day05_task01_transfer_learning.ipynb](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/srcs/notebooks/day05_task01_transfer_learning.ipynb)
+  - Documentation: [docs/day05/task01/task01_transfer_learning.md](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/docs/day05/task01/task01_transfer_learning.md)
+  - Artifacts: [bin/day05/task01/](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/bin/day05/task01/)
+
+### 3.9 Day 5 Task 2: Data Augmentation and MobileNetV3 Transfer Learning on CIFAR-10
+
+- **Objective**: Contrast train-from-scratch CNNs (with and without data augmentation) against pretrained MobileNetV3-Small on CIFAR-10.
+- **Key Findings**:
+  - **Transfer Learning**: MobileNetV3-Small achieves 83.40% val accuracy and 0.8350 Macro-F1, outperforming train-from-scratch CNNs by over 41 percentage points.
+  - **Data Augmentation**: Regularizes training and narrows generalization gap, but requires extended training to outpace baseline models.
+- **Pipeline & Notebook**:
+  - Pipeline: [srcs/pipelines/day05_task02_transfer_learning.py](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/srcs/pipelines/day05_task02_transfer_learning.py)
+  - Notebook: [srcs/notebooks/day05_task02_transfer_learning.ipynb](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/srcs/notebooks/day05_task02_transfer_learning.ipynb)
+  - Documentation: [docs/day05/task02/task02_transfer_learning.md](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/docs/day05/task02/task02_transfer_learning.md)
+  - Artifacts: [bin/day05/task02/](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/bin/day05/task02/)
+
 ---
 
 ## 4. Execution Guide
 
 ### 4.1 Environment Setup
+
 ```powershell
 # Create virtual environment
 python -m venv .venv
@@ -153,6 +214,7 @@ pip install -r requirements.txt
 ```
 
 ### 4.2 Running Standalone Pipelines
+
 Each pipeline can be executed independently from the repository root:
 
 ```powershell
@@ -170,9 +232,22 @@ python -m srcs.pipelines.day03_task01_training_loop --epochs 5
 
 # Day 3 Task 2: Optimizer Comparison and Early Stopping
 python -m srcs.pipelines.day03_task02_optimizer_comparison --epochs 12
+
+# Day 4 Task 1: MLP vs 2-Block CNN on FashionMNIST
+python -m srcs.pipelines.day04_task01_cnn_fashionmnist --epochs 5
+
+# Day 4 Task 2: CNN Architectural Variants Ablation Study
+python -m srcs.pipelines.day04_task02_cnn_variants --epochs 5
+
+# Day 5 Task 1: ResNet18 Transfer Learning on CIFAR-10
+python -m srcs.pipelines.day05_task01_transfer_learning --epochs 4
+
+# Day 5 Task 2: Data Augmentation and Transfer Learning on CIFAR-10
+python -m srcs.pipelines.day05_task02_transfer_learning --epochs 4
 ```
 
 ### 4.3 Notebook Generation and Automated Verification
+
 ```powershell
 # Regenerate all standardized notebooks
 .venv\Scripts\python.exe tools/notebooks_generate.py

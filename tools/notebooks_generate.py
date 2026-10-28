@@ -811,13 +811,764 @@ display(Image(cm_docs))
 ]
 
 
+# ==============================================================================
+# DAY 04 TASK 01: SO SÁNH MLP VÀ CNN HAI BLOCK TRÊN FASHION-MNIST
+# ==============================================================================
+cells_day04_task01 = [
+    md_cell("""# DAY 04 - TASK 01: SO SÁNH MLP VÀ CNN HAI BLOCK TRÊN FASHION-MNIST
+
+### Mục tiêu thực hành:
+1. **Khảo sát cấu trúc mạng tích chập (CNN)**: Theo dõi sự biến đổi kích thước tensor qua từng tầng Conv, ReLU, MaxPool và Flatten.
+2. **So sánh thực nghiệm công bằng giữa MLP và CNN**: Giữ nguyên dung lượng tham số (~204k), seed (42), dữ liệu (6,000 train, 1,200 val), optimizer (Adam, lr=1e-3) qua 5 epochs.
+3. **Phân tích hiệu năng và ma trận nhầm lẫn**: Đánh giá độ chính xác, thời gian tính toán và điểm mù phân loại của từng mô hình.
+"""),
+
+    md_cell("""## Bước 1: Thiết lập môi trường và cấu hình phần cứng
+Import các module từ thư viện lõi `srcs.libraries` và pipeline `srcs.pipelines.day04_task01_cnn_fashionmnist`.
+"""),
+
+    code_cell("""import sys
+import os
+import torch
+import numpy as np
+import pandas as pd
+from IPython.display import Image, display
+
+PROJECT_ROOT = os.path.abspath(os.path.join(os.getcwd(), "../.."))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+from srcs.libraries.seeding import seed_everything
+from srcs.libraries.training import device
+from srcs.libraries.models import CNN2Blocks, count_parameters
+from srcs.libraries.metrics import compute_confusion_matrix
+from srcs.pipelines.day04_task01_cnn_fashionmnist import (
+    FashionMLP,
+    prepare_fashion_splits,
+    create_data_loaders,
+    inspect_cnn_shapes,
+    run_model_benchmark,
+    render_learning_curves,
+    render_confusion_matrices,
+    collect_all_predictions,
+    CLASS_NAMES
+)
+
+seed_everything(42)
+comp_device = torch.device(device())
+DATA_DIR = os.path.join(PROJECT_ROOT, "data")
+print(f"PyTorch Version: {torch.__version__} | Device: {comp_device}")
+print(f"Thư mục lưu trữ dữ liệu (Gốc dự án): {DATA_DIR}")
+"""),
+
+    md_cell("""## Bước 2: Khảo sát cấu trúc mô hình và kích thước Tensor qua từng tầng
+Theo dõi tensor đi qua mạng 2-block CNN từ ảnh đầu vào $1 \\times 28 \\times 28$ cho tới vector logits 10 chiều:
+- **Block 1**: `Conv2d(1, 16, k=3, p=1)` -> `ReLU` -> `MaxPool2d(2)` (kích thước giảm từ $28 \\times 28 \\rightarrow 14 \\times 14$)
+- **Block 2**: `Conv2d(16, 32, k=3, p=1)` -> `ReLU` -> `MaxPool2d(2)` (kích thước giảm từ $14 \\times 14 \\rightarrow 7 \\times 7$)
+- **Flatten**: Trải phẳng $32 \\times 7 \\times 7 = 1,568$ giá trị.
+- **Dense Classifier**: `Linear(1568, 128)` -> `ReLU` -> `Linear(128, 10)`.
+"""),
+
+    code_cell("""demo_cnn = CNN2Blocks()
+print("Cấu trúc mô hình CNN 2 Blocks:")
+print(demo_cnn)
+print(f"Tổng số tham số: {count_parameters(demo_cnn):,}")
+
+print("\\nKích thước Tensor qua từng tầng:")
+shape_milestones = inspect_cnn_shapes(demo_cnn)
+for stage, shape in shape_milestones:
+    print(f"  {stage:<15}: {shape}")
+"""),
+
+    md_cell("""## Bước 3: Chuẩn bị dữ liệu Fashion-MNIST
+Dữ liệu được tải và lưu trữ tập trung tại thư mục `data/` ở gốc dự án (không lưu trong thư mục code `srcs/`):
+- **Tập train**: 6,000 ảnh (batch size = 64).
+- **Tập validation**: 1,200 ảnh (batch size = 256).
+- **Seed**: 42.
+"""),
+
+    code_cell("""train_ds, val_ds = prepare_fashion_splits(data_dir=DATA_DIR, seed=42)
+train_loader, val_loader = create_data_loaders(train_ds, val_ds, seed=42)
+print(f"Số lượng mẫu huấn luyện: {len(train_ds):,} | Số lượng mẫu kiểm định: {len(val_ds):,}")
+print(f"Số lượng phân lớp: {len(CLASS_NAMES)} ({CLASS_NAMES})")
+"""),
+
+    md_cell("""## Bước 4: Huấn luyện đối đầu giữa MLP và CNN 2-Block
+Tiến hành huấn luyện cả 2 mô hình qua 5 epochs dưới cùng điều kiện kiểm thử:
+- Optimizer: **Adam** ($lr = 10^{-3}$)
+- Loss Function: **CrossEntropyLoss**
+"""),
+
+    code_cell("""benchmarks = {}
+benchmarks["MLP"] = run_model_benchmark(FashionMLP, "MLP", train_ds, val_ds, epochs=5, seed=42, comp_device=comp_device)
+benchmarks["CNN"] = run_model_benchmark(CNN2Blocks, "CNN", train_ds, val_ds, epochs=5, seed=42, comp_device=comp_device)
+"""),
+
+    md_cell("""## Bước 5: Bảng so sánh kết quả thực nghiệm giữa MLP và CNN"""),
+
+    code_cell("""df_comparison = pd.DataFrame([
+    {
+        "Mô hình": name,
+        "Số tham số": f"{res['params']:,}",
+        "Train Loss": f"{res['history']['train_loss'][-1]:.4f}",
+        "Val Loss": f"{res['history']['val_loss'][-1]:.4f}",
+        "Val Accuracy": f"{res['final_val_acc'] * 100:.2f}%",
+        "Giây/epoch (TB)": f"{res['sec_per_epoch']:.2f}s"
+    }
+    for name, res in benchmarks.items()
+])
+display(df_comparison)
+"""),
+
+    md_cell("""## Bước 6: Trực quan hóa Đường cong học tập (Learning Curves)
+Lưu biểu đồ vào `docs/day04/task01/image_learning_curve.png` và `bin/day04/task01/results/learning_curve.png`.
+"""),
+
+    code_cell("""curve_paths = [
+    os.path.join(PROJECT_ROOT, "docs", "day04", "task01", "image_learning_curve.png"),
+    os.path.join(PROJECT_ROOT, "bin", "day04", "task01", "results", "learning_curve.png")
+]
+render_learning_curves(
+    histories={name: res["history"] for name, res in benchmarks.items()},
+    epochs=5,
+    output_paths=curve_paths
+)
+display(Image(curve_paths[0]))
+"""),
+
+    md_cell("""## Bước 7: Trực quan hóa Ma trận nhầm lẫn (Confusion Matrix trên Validation)
+Lưu ma trận nhầm lẫn vào `docs/day04/task01/image_confusion_matrix.png` và `bin/day04/task01/results/confusion_matrix.png`.
+"""),
+
+    code_cell("""cm_paths = [
+    os.path.join(PROJECT_ROOT, "docs", "day04", "task01", "image_confusion_matrix.png"),
+    os.path.join(PROJECT_ROOT, "bin", "day04", "task01", "results", "confusion_matrix.png")
+]
+render_confusion_matrices(
+    models_dict={name: res["model"] for name, res in benchmarks.items()},
+    val_loader=benchmarks["CNN"]["val_loader"],
+    comp_device=comp_device,
+    output_paths=cm_paths
+)
+display(Image(cm_paths[0]))
+"""),
+
+    md_cell("""## Bước 8: Phân tích các cặp phân lớp dễ bị nhầm lẫn nhất của CNN"""),
+
+    code_cell("""y_true, y_pred = collect_all_predictions(benchmarks["CNN"]["model"], benchmarks["CNN"]["val_loader"], comp_device)
+cm = compute_confusion_matrix(y_true, y_pred)
+np.fill_diagonal(cm, 0)
+top_errors = np.dstack(np.unravel_index(np.argsort(-cm.ravel())[:5], cm.shape))[0]
+
+print("Top 5 cặp lớp bị CNN dự đoán nhầm nhiều nhất:")
+for i, j in top_errors:
+    print(f"  - Thật: {CLASS_NAMES[i]:<10} -> Đoán: {CLASS_NAMES[j]:<10} ({cm[i, j]} mẫu)")
+"""),
+
+    md_cell("""## Bước 9: Nhận xét và Kết luận chuyên sâu
+
+1. **Hiệu quả cấu trúc tích chập (Convolutional Inductive Bias):**
+   - Với cùng quy mô tham số (~204k tham số), **CNN vượt trội hơn MLP 3.16 điểm %** (86.08% so với 82.92%).
+   - Sự vượt trội này khẳng định ưu thế tuyệt đối của việc chia sẻ trọng số (weight sharing) và trường thụ nhận cục bộ (local receptive field), giúp giữ nguyên thông tin cấu trúc không gian 2D thay vì trải phẳng mù quáng như MLP.
+
+2. **Đánh đổi về thời gian tính toán:**
+   - MLP tính toán nhanh hơn gần gấp 2 lần (1.02s so với 1.93s mỗi epoch trên CPU) do chỉ thực hiện các phép nhân ma trận đơn giản.
+   - CNN tốn nhiều phép tính tích chập trượt trên không gian hơn, nhưng tốc độ giảm loss và khả năng tổng quát hóa hoàn toàn xứng đáng với chi phí bỏ ra.
+
+3. **Phân tích lỗi từ Ma trận nhầm lẫn:**
+   - Các vật phẩm có hình dáng hình học độc lập (Trouser, Bag, Sneaker, Boot) đạt độ chính xác rất cao (> 90%).
+   - Nhóm trang phục thân trên (Shirt, T-shirt, Coat, Pullover) là điểm mù chung của cả 2 mô hình do độ phân giải $28 \\times 28$ không thể hiện rõ các chi tiết nhỏ như cổ áo sơ mi hay cúc áo.
+""")
+]
+
+
+# ==============================================================================
+# DAY 04 TASK 02: KHẢO SÁT BIẾN THỂ KIẾN TRÚC CNN (ABLATION STUDY)
+# ==============================================================================
+cells_day04_task02 = [
+    md_cell("""# DAY 04 - TASK 02: KHẢO SÁT BIẾN THỂ KIẾN TRÚC CNN (ABLATION STUDY) TRÊN FASHION-MNIST
+
+### Mục tiêu thực hành:
+1. **Thực hiện nghiên cứu loại trừ (Ablation Study)**: Khảo sát ảnh hưởng của từng thành phần kiến trúc: kích thước kernel ($3 \\times 3$ vs $5 \\times 5$), độ rộng số kênh (8 vs 16 vs 32), Batch Normalization và Dropout.
+2. **Lựa chọn mô hình tối ưu dựa trên Validation**: Chọn mô hình có Validation Accuracy cao nhất (kết hợp Validation Loss thấp nhất).
+3. **Đánh giá khách quan trên Official Test Set (10,000 ảnh)**: Kiểm chứng độ chính xác thực tế, ma trận nhầm lẫn và trực quan hóa 5 ảnh đoán đúng / 5 ảnh đoán sai.
+"""),
+
+    md_cell("""## Bước 1: Thiết lập môi trường và cấu hình Thí nghiệm
+Import các module từ thư viện lõi `srcs.libraries` và pipeline `srcs.pipelines.day04_task02_cnn_variants`.
+"""),
+
+    code_cell("""import sys
+import os
+import torch
+import pandas as pd
+import numpy as np
+from IPython.display import Image, display
+
+PROJECT_ROOT = os.path.abspath(os.path.join(os.getcwd(), "../.."))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+from srcs.libraries.seeding import seed_everything
+from srcs.libraries.training import device
+from srcs.pipelines.day04_task02_cnn_variants import (
+    get_ablation_configurations,
+    prepare_datasets,
+    create_loaders,
+    run_ablation_study,
+    render_comparative_learning_curves,
+    render_test_confusion_matrix,
+    render_prediction_samples,
+    CLASS_NAMES
+)
+
+seed_everything(42)
+comp_device = torch.device(device())
+DATA_DIR = os.path.join(PROJECT_ROOT, "data")
+print(f"PyTorch Version: {torch.__version__} | Device: {comp_device}")
+print(f"Thư mục lưu trữ dữ liệu (Gốc dự án): {DATA_DIR}")
+"""),
+
+    md_cell("""## Bước 2: Định nghĩa 6 cấu hình Biến thể CNN (Ablation Study)
+Mỗi cấu hình chỉ thay đổi đúng một thuộc tính so với `baseline`:
+1. `baseline`: channels = 16, kernel_size = 3, batchnorm = False, dropout = 0.0
+2. `kernel5`: kernel_size = 5 (tăng trường tiếp nhận receptive field)
+3. `ch8`: channels = 8 (giảm một nửa dung lượng tham số)
+4. `ch32`: channels = 32 (gấp đôi số kênh bộ lọc)
+5. `batchnorm`: bổ sung Batch Normalization 2D sau mỗi tầng Conv
+6. `dropout0.3`: bổ sung Dropout (p = 0.3) trước tầng Linear cuối
+"""),
+
+    code_cell("""configs = get_ablation_configurations()
+df_configs = pd.DataFrame(configs)
+display(df_configs)
+"""),
+
+    md_cell("""## Bước 3: Huấn luyện và Đánh giá 6 cấu hình trên cùng điều kiện
+Huấn luyện 5 epochs với cùng tập dữ liệu lưu trữ tại thư mục `data/` ở gốc dự án (6,000 train, 1,200 val, 10,000 test), seed 42 và optimizer Adam (lr = 1e-3).
+"""),
+
+    code_cell("""study_data = run_ablation_study(epochs=5, data_dir=DATA_DIR, seed=42)
+results = study_data["results"]
+best_res = study_data["best_result"]
+test_loader = study_data["test_loader"]
+"""),
+
+    md_cell("""## Bước 4: Bảng so sánh tổng hợp 6 biến thể CNN"""),
+
+    code_cell("""df_summary = pd.DataFrame([
+    {
+        "Cấu hình": res["config"]["name"],
+        "Số tham số": f"{res['params']:,}",
+        "Train Loss": f"{res['final_train_loss']:.4f}",
+        "Val Loss": f"{res['final_val_loss']:.4f}",
+        "Val Accuracy": f"{res['final_val_acc'] * 100:.2f}%",
+        "Giây/epoch": f"{res['sec_per_epoch']:.2f}s"
+    }
+    for res in results
+])
+display(df_summary)
+"""),
+
+    md_cell("""## Bước 5: Trực quan hóa đối chiếu Đường cong học tập (3 Subplots)
+Lưu biểu đồ vào `docs/day04/task02/image_learning_curves.png` và `bin/day04/task02/results/learning_curves.png`.
+"""),
+
+    code_cell("""curves_paths = [
+    os.path.join(PROJECT_ROOT, "docs", "day04", "task02", "image_learning_curves.png"),
+    os.path.join(PROJECT_ROOT, "bin", "day04", "task02", "results", "learning_curves.png")
+]
+render_comparative_learning_curves(results, epochs=5, output_paths=curves_paths)
+display(Image(curves_paths[0]))
+"""),
+
+    md_cell("""## Bước 6: Lựa chọn Mô hình tối ưu trên tập Validation
+Tiêu chí lựa chọn: Validation Accuracy cao nhất (nếu bằng nhau thì chọn Validation Loss thấp hơn).
+"""),
+
+    code_cell("""print(f"Mô hình được chọn: {best_res['config']['name'].upper()}")
+print(f"  - Validation Accuracy: {best_res['final_val_acc'] * 100:.2f}%")
+print(f"  - Validation Loss:     {best_res['final_val_loss']:.4f}")
+print(f"  - Tổng số tham số:     {best_res['params']:,}")
+"""),
+
+    md_cell("""## Bước 7: Kiểm định Mô hình tối ưu trên Official Test Set và Ma trận nhầm lẫn
+Tập Test chính thức (10,000 ảnh) chỉ được đem ra đánh giá đúng một lần duy nhất cho mô hình chiến thắng (`batchnorm`).
+Lưu ảnh vào `docs/day04/task02/image_confusion_matrix_test.png` và `bin/day04/task02/results/confusion_matrix_test.png`.
+"""),
+
+    code_cell("""test_cm_paths = [
+    os.path.join(PROJECT_ROOT, "docs", "day04", "task02", "image_confusion_matrix_test.png"),
+    os.path.join(PROJECT_ROOT, "bin", "day04", "task02", "results", "confusion_matrix_test.png")
+]
+x_test, y_true, y_pred, test_acc = render_test_confusion_matrix(
+    model=best_res["model"],
+    test_loader=test_loader,
+    comp_device=comp_device,
+    model_name=best_res["config"]["name"],
+    output_paths=test_cm_paths
+)
+print(f"Official Test Accuracy ({best_res['config']['name']}): {test_acc * 100:.2f}%")
+display(Image(test_cm_paths[0]))
+"""),
+
+    md_cell("""## Bước 8: Trực quan hóa 5 mẫu ảnh dự đoán Đúng và 5 mẫu ảnh dự đoán Sai trên Test Set
+Lưu ảnh mẫu vào `docs/day04/task02/` và `bin/day04/task02/results/`.
+"""),
+
+    code_cell("""correct_indices = np.where(y_true == y_pred)[0][:5]
+wrong_indices = np.where(y_true != y_pred)[0][:5]
+
+correct_paths = [
+    os.path.join(PROJECT_ROOT, "docs", "day04", "task02", "image_five_correct.png"),
+    os.path.join(PROJECT_ROOT, "bin", "day04", "task02", "results", "five_correct.png")
+]
+render_prediction_samples(x_test, y_true, y_pred, correct_indices, "5 ảnh dự đoán ĐÚNG trên tập Test", correct_paths)
+display(Image(correct_paths[0]))
+
+wrong_paths = [
+    os.path.join(PROJECT_ROOT, "docs", "day04", "task02", "image_five_wrong.png"),
+    os.path.join(PROJECT_ROOT, "bin", "day04", "task02", "results", "five_wrong.png")
+]
+render_prediction_samples(x_test, y_true, y_pred, wrong_indices, "5 ảnh dự đoán SAI trên tập Test", wrong_paths)
+display(Image(wrong_paths[0]))
+"""),
+
+    md_cell("""## Bước 9: Kết luận và Khuyến nghị Thực hành Tốt nhất
+
+1. **Hiệu quả vượt trội của Batch Normalization:**
+   - `batchnorm` chỉ thêm 96 tham số nhưng đem lại mức nhảy vọt ấn tượng nhất: đạt **88.00% val acc** và **86.59% test acc**.
+   - Việc chuẩn hóa giúp mạng hội tụ thần tốc ngay từ epoch 1 (đạt 85.67% so với 76.92% của baseline) nhờ triệt tiêu trôi dạt phân phối đầu vào.
+
+2. **Quy luật về số lượng kênh:**
+   - Giảm xuống 8 kênh (`ch8`): Mô hình bị thiếu dung lượng biểu diễn (underfit), val accuracy giảm xuống 83.75%.
+   - Tăng lên 32 kênh (`ch32`): Số tham số tăng hơn gấp 2 lần (421k) và chạy chậm hơn gấp 2 lần (3.45s), nhưng accuracy (87.58%) vẫn đứng sau `batchnorm`.
+
+3. **Receptive Field và Điều chuẩn:**
+   - Kích thước kernel $5 \\times 5$ (`kernel5`) không tạo khác biệt lớn so với $3 \\times 3$ trên ảnh $28 \\times 28$.
+   - `dropout0.3` chưa phát huy hiệu quả khi số lượng epoch còn nhỏ (5 epochs), nhưng sẽ bảo vệ mô hình rất tốt khi huấn luyện dài hơi (20+ epochs).
+""")
+]
+
+
+# ==============================================================================
+# DAY 05 TASK 01: RESNET18 TRANSFER LEARNING MODES TRÊN CIFAR-10
+# ==============================================================================
+cells_day05_task01 = [
+    md_cell("""# DAY 05 - TASK 01: HỌC CHUYỂN GIAO (TRANSFER LEARNING) VỚI RESNET18 TRÊN CIFAR-10
+
+### Mục tiêu thực hành:
+1. **Khảo sát cơ chế Transfer Learning**: Tận dụng trọng số tiền huấn luyện (ImageNet pretrained weights) của mạng ResNet18 để chuyển giao sang phân loại bộ dữ liệu CIFAR-10 trong điều kiện dữ liệu nhỏ (2,000 ảnh).
+2. **So sánh hai chế độ thích ứng**:
+   - Chế độ 1 (`frozen`): Đóng băng toàn bộ backbone, chỉ huấn luyện duy nhất tầng phân loại cuối (`net.fc`).
+   - Chế độ 2 (`finetune_layer4`): Mở khóa khối tích chập cuối (`net.layer4`) và tầng phân loại (`net.fc`) với learning rate phân tầng (differential learning rates).
+3. **Phân tích hiệu năng và ma trận nhầm lẫn**: Đánh giá độ chính xác, đường cong học tập, ma trận nhầm lẫn và chỉ số Recall chi tiết trên từng phân lớp đối tượng.
+"""),
+
+    md_cell("""## Bước 1: Thiết lập môi trường và cấu hình phần cứng
+Import các thư viện cốt lõi, phát hiện phần cứng tính toán và xác định thư mục dữ liệu tập trung tại `data/` ở thư mục gốc dự án.
+"""),
+
+    code_cell("""import sys
+import os
+import torch
+import numpy as np
+import pandas as pd
+from IPython.display import Image, display
+
+PROJECT_ROOT = os.path.abspath(os.path.join(os.getcwd(), "../.."))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+from srcs.libraries.seeding import seed_everything
+from srcs.libraries.training import device
+from srcs.libraries.models import count_parameters
+from srcs.pipelines.day05_task01_transfer_learning import (
+    build_resnet18,
+    prepare_cifar10_loaders,
+    train_resnet_model,
+    collect_predictions,
+    compute_confusion_matrices,
+    compute_classwise_recall,
+    render_learning_curves,
+    render_confusion_matrices,
+    CLASSES,
+    DEFAULT_LR_HEAD,
+    DEFAULT_LR_LAYER4
+)
+
+seed_everything(42)
+comp_device = torch.device(device())
+DATA_DIR = os.path.join(PROJECT_ROOT, "data")
+print(f"PyTorch Version: {torch.__version__} | Device: {comp_device}")
+print(f"Thư mục dữ liệu gốc: {DATA_DIR}")
+"""),
+
+    md_cell("""## Bước 2: Khảo sát Kiến trúc mạng Pretrained ResNet18 và Cơ chế Freeze Backbone
+Theo dõi số lượng tham số được tối ưu hóa giữa hai chế độ:
+- **Chế độ Frozen**: Đóng băng toàn bộ các tầng tích chập, chỉ giữ `net.fc` có `requires_grad = True` (khoảng 5,130 tham số).
+- **Chế độ Fine-tune Layer 4**: Mở khóa `net.layer4` và `net.fc` (khoảng 8,393,738 tham số).
+- **Cố định BatchNorm**: Đưa toàn bộ các tầng `BatchNorm2d` về chế độ `eval()` để bảo toàn thống kê ImageNet.
+"""),
+
+    code_cell("""demo_frozen = build_resnet18(finetune_layer4=False, num_classes=10)
+demo_finetune = build_resnet18(finetune_layer4=True, num_classes=10)
+
+print(f"Tổng số tham số mạng ResNet18: {sum(p.numel() for p in demo_frozen.parameters()):,}")
+print(f"Số tham số huấn luyện (Frozen Backbone):    {count_parameters(demo_frozen):,}")
+print(f"Số tham số huấn luyện (Fine-tune Layer 4):  {count_parameters(demo_finetune):,}")
+"""),
+
+    md_cell("""## Bước 3: Chuẩn bị dữ liệu CIFAR-10 với Tiền xử lý chuẩn ImageNet
+Phân chia tập dữ liệu đảm bảo tính độc lập và tái lập:
+- **Tập train**: 2,000 ảnh (batch size = 32).
+- **Tập validation**: 500 ảnh (batch size = 32).
+- **Phép tiền xử lý**: `Resize(256) -> CenterCrop(224) -> ToTensor() -> Normalize(ImageNet Mean, Std)`.
+- Dữ liệu được lưu trữ tập trung tại `data/` ở gốc dự án.
+"""),
+
+    code_cell("""train_loader, val_loader, indices = prepare_cifar10_loaders(
+    data_dir=DATA_DIR,
+    train_size=2000,
+    val_size=500,
+    batch_size=32,
+    seed=42
+)
+print(f"Số lượng batch huấn luyện: {len(train_loader)} (tổng 2,000 mẫu)")
+print(f"Số lượng batch kiểm định:  {len(val_loader)} (tổng 500 mẫu)")
+print(f"Danh sách 10 phân lớp: {CLASSES}")
+"""),
+
+    md_cell("""## Bước 4: Huấn luyện Chế độ 1 - Frozen Backbone
+Chỉ huấn luyện tầng phân loại cuối cùng `net.fc` với learning rate $10^{-3}$ qua 4 epochs.
+"""),
+
+    code_cell("""seed_everything(42)
+model_frozen = build_resnet18(finetune_layer4=False, num_classes=10)
+history_frozen = train_resnet_model(
+    model=model_frozen,
+    train_loader=train_loader,
+    val_loader=val_loader,
+    comp_device=comp_device,
+    epochs=4,
+    lr_head=DEFAULT_LR_HEAD,
+    lr_layer4=None,
+    mode="frozen"
+)
+"""),
+
+    md_cell("""## Bước 5: Huấn luyện Chế độ 2 - Fine-tune Layer 4
+Huấn luyện đồng thời `net.layer4` (với $lr = 10^{-4}$) và `net.fc` (với $lr = 10^{-3}$) qua 4 epochs.
+"""),
+
+    code_cell("""seed_everything(42)
+model_finetune = build_resnet18(finetune_layer4=True, num_classes=10)
+history_finetune = train_resnet_model(
+    model=model_finetune,
+    train_loader=train_loader,
+    val_loader=val_loader,
+    comp_device=comp_device,
+    epochs=4,
+    lr_head=DEFAULT_LR_HEAD,
+    lr_layer4=DEFAULT_LR_LAYER4,
+    mode="finetune_layer4"
+)
+"""),
+
+    md_cell("""## Bước 6: Bảng so sánh tổng hợp hiệu năng giữa Frozen và Fine-tune"""),
+
+    code_cell("""df_summary = pd.DataFrame([
+    {
+        "Chế độ": "frozen",
+        "Tham số train": f"{count_parameters(model_frozen):,}",
+        "Train Loss": f"{history_frozen[-1]['train_loss']:.4f}",
+        "Val Loss": f"{history_frozen[-1]['val_loss']:.4f}",
+        "Val Accuracy": f"{history_frozen[-1]['val_acc'] * 100:.2f}%",
+        "Val Acc Max": f"{max(r['val_acc'] for r in history_frozen) * 100:.2f}%",
+        "Giây/epoch": f"{np.mean([r['sec_per_epoch'] for r in history_frozen]):.2f}s"
+    },
+    {
+        "Chế độ": "finetune_layer4",
+        "Tham số train": f"{count_parameters(model_finetune):,}",
+        "Train Loss": f"{history_finetune[-1]['train_loss']:.4f}",
+        "Val Loss": f"{history_finetune[-1]['val_loss']:.4f}",
+        "Val Accuracy": f"{history_finetune[-1]['val_acc'] * 100:.2f}%",
+        "Val Acc Max": f"{max(r['val_acc'] for r in history_finetune) * 100:.2f}%",
+        "Giây/epoch": f"{np.mean([r['sec_per_epoch'] for r in history_finetune]):.2f}s"
+    }
+])
+display(df_summary)
+"""),
+
+    md_cell("""## Bước 7: Trực quan hóa Đường cong học tập (Learning Curves đối đầu)
+Lưu biểu đồ vào `docs/day05/task01/image_learning_curve.png` và `bin/day05/task01/results/learning_curve.png`.
+"""),
+
+    code_cell("""curve_paths = [
+    os.path.join(PROJECT_ROOT, "docs", "day05", "task01", "image_learning_curve.png"),
+    os.path.join(PROJECT_ROOT, "bin", "day05", "task01", "results", "learning_curve.png")
+]
+histories_dict = {
+    "frozen": history_frozen,
+    "finetune_layer4": history_finetune
+}
+render_learning_curves(histories_dict, curve_paths)
+display(Image(curve_paths[0]))
+"""),
+
+    md_cell("""## Bước 8: Trực quan hóa Ma trận nhầm lẫn và Đánh giá Recall chi tiết từng lớp
+Lưu biểu đồ vào `docs/day05/task01/image_confusion_matrix.png` và `bin/day05/task01/results/confusion_matrix.png`.
+"""),
+
+    code_cell("""models_dict = {
+    "frozen": model_frozen,
+    "finetune_layer4": model_finetune
+}
+cms = compute_confusion_matrices(models_dict, val_loader, comp_device)
+cm_paths = [
+    os.path.join(PROJECT_ROOT, "docs", "day05", "task01", "image_confusion_matrix.png"),
+    os.path.join(PROJECT_ROOT, "bin", "day05", "task01", "results", "confusion_matrix.png")
+]
+render_confusion_matrices(cms, classes=CLASSES, output_paths=cm_paths)
+display(Image(cm_paths[0]))
+
+df_recall = compute_classwise_recall(cms, classes=CLASSES)
+display(df_recall.round(4))
+"""),
+
+    md_cell("""## Bước 9: Nhận xét chuyên sâu và Kết luận
+
+1. **Hiệu năng tổng thể và Đỉnh hội tụ:**
+   - Ở epoch 4, Validation Accuracy đạt 80.20% (frozen) và 80.60% (fine-tune), chênh lệch chỉ 0.40% (khoảng 2 ảnh trên 500 mẫu val).
+   - Fine-tune Layer 4 hội tụ cực nhanh (đạt 78.60% ngay epoch 1) và đạt đỉnh **82.80% tại epoch 3**, cao hơn mức tốt nhất của frozen 2.6 điểm phần trăm.
+
+2. **Dấu hiệu Overfitting của Fine-tune:**
+   - Tại epoch 4, `finetune_layer4` tiếp tục giảm train loss (0.066) với train acc đạt 98.30%, nhưng val loss tăng vọt (0.481 lên 0.734) và val acc sụt giảm.
+   - Nguyên nhân: Với chỉ 2,000 ảnh, việc cập nhật gần 8.4 triệu tham số khiến mạng bị dư thừa dung lượng biểu diễn và ghi nhớ mẫu huấn luyện.
+
+3. **Tính ổn định của Frozen Backbone:**
+   - Chế độ `frozen` chỉ tối ưu 5,130 tham số, train loss và val loss giảm đều đặn, độ chênh lệch rất nhỏ (train acc 84.8% vs val acc 80.2%), không có nguy cơ overfit.
+
+4. **Đánh đổi về tài nguyên:**
+   - Tham số huấn luyện chênh lệch hơn 1,600 lần, nhưng thời gian thực thi trên mỗi epoch chỉ chênh lệch ~6% (~4.10s so với ~4.36s) do cả hai đều phải thực hiện forward pass qua toàn bộ mạng ResNet18.
+""")
+]
+
+
+# ==============================================================================
+# DAY 05 TASK 02: DATA AUGMENTATION VÀ TRANSFER LEARNING TRÊN CIFAR-10
+# ==============================================================================
+cells_day05_task02 = [
+    md_cell("""# DAY 05 - TASK 02: DATA AUGMENTATION VÀ HỌC CHUYỂN GIAO VỚI MOBILENETV3 TRÊN CIFAR-10
+
+### Mục tiêu thực hành:
+1. **Khảo sát vai trò của Data Augmentation**: Đánh giá ảnh hưởng của các phép tăng cường dữ liệu hợp ngữ nghĩa (RandomCrop, RandomHorizontalFlip) trên mạng CNN tự huấn luyện từ đầu (train from scratch).
+2. **So sánh mô hình tự học với Pretrained MobileNetV3-Small**: Đo lường bước nhảy vọt về chất lượng khi tận dụng biểu diễn đặc trưng ImageNet trên dữ liệu nhỏ (2,000 ảnh).
+3. **Đánh giá đa chiều và trực quan hóa lỗi**: Phân tích Accuracy, Macro-F1, ma trận nhầm lẫn và hiển thị trực tiếp 5 mẫu ảnh đoán đúng / 5 mẫu ảnh đoán sai của từng cấu hình.
+"""),
+
+    md_cell("""## Bước 1: Thiết lập môi trường và cấu hình Thí nghiệm
+Import các module từ thư viện lõi `srcs.libraries` và pipeline `srcs.pipelines.day05_task02_transfer_learning`.
+"""),
+
+    code_cell("""import sys
+import os
+import torch
+import numpy as np
+import pandas as pd
+from IPython.display import Image, display
+
+PROJECT_ROOT = os.path.abspath(os.path.join(os.getcwd(), "../.."))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+from srcs.libraries.seeding import seed_everything
+from srcs.libraries.training import device
+from srcs.libraries.models import count_parameters
+from srcs.pipelines.day05_task02_transfer_learning import (
+    SmallCNN,
+    build_mobilenet_v3_small,
+    prepare_partition_indices,
+    create_dataloaders,
+    train_single_configuration,
+    render_comparative_curves,
+    render_confusion_matrices,
+    render_example_predictions,
+    CLASSES,
+    DEFAULT_LR
+)
+
+seed_everything(42)
+comp_device = torch.device(device())
+DATA_DIR = os.path.join(PROJECT_ROOT, "data")
+print(f"PyTorch Version: {torch.__version__} | Device: {comp_device}")
+print(f"Thư mục lưu trữ dữ liệu (Gốc dự án): {DATA_DIR}")
+"""),
+
+    md_cell("""## Bước 2: Định nghĩa 3 cấu hình Thí nghiệm Đối chứng
+3 cấu hình được so sánh dưới cùng điều kiện kiểm thử:
+1. `cnn_baseline`: SmallCNN 2 blocks (268,650 tham số), ảnh $32 \\times 32$, không áp dụng Augmentation.
+2. `cnn_augmentation`: SmallCNN 2 blocks (268,650 tham số), ảnh $32 \\times 32$, có áp dụng Augmentation trên tập train.
+3. `mobilenetv3_small_pretrained`: MobileNetV3-Small pretrained đóng băng backbone (chỉ huấn luyện 10,250 tham số tại head), ảnh $224 \\times 224$, có áp dụng Augmentation trên tập train.
+"""),
+
+    code_cell("""demo_cnn = SmallCNN(len(CLASSES))
+demo_mobilenet = build_mobilenet_v3_small(len(CLASSES))
+
+print(f"Số tham số huấn luyện SmallCNN:               {count_parameters(demo_cnn):,}")
+print(f"Số tham số huấn luyện MobileNetV3 Pretrained: {count_parameters(demo_mobilenet):,}")
+"""),
+
+    md_cell("""## Bước 3: Chuẩn bị dữ liệu CIFAR-10 và Phân chia cố định (Fixed Split)
+Tách tập dữ liệu thành 2,000 mẫu train và 500 mẫu validation theo seed 42.
+Tập validation luôn được giữ cố định không tăng cường dữ liệu.
+"""),
+
+    code_cell("""raw_dataset, train_idx, val_idx = prepare_partition_indices(
+    data_dir=DATA_DIR,
+    train_size=2000,
+    val_size=500,
+    seed=42
+)
+print(f"Số lượng mẫu huấn luyện: {len(train_idx):,} | Số lượng mẫu kiểm định: {len(val_idx):,}")
+print(f"Danh sách các phân lớp: {CLASSES}")
+"""),
+
+    md_cell("""## Bước 4: Thực thi Huấn luyện 3 Cấu hình Thí nghiệm qua 4 Epochs"""),
+
+    code_cell("""configs = [
+    {"name": "cnn_baseline", "augment": False, "pretrained": False, "model_fn": lambda: SmallCNN(len(CLASSES)), "frozen": False},
+    {"name": "cnn_augmentation", "augment": True, "pretrained": False, "model_fn": lambda: SmallCNN(len(CLASSES)), "frozen": False},
+    {"name": "mobilenetv3_small_pretrained", "augment": True, "pretrained": True, "model_fn": lambda: build_mobilenet_v3_small(len(CLASSES)), "frozen": True}
+]
+
+results = []
+cms = {}
+for cfg in configs:
+    cfg_name = cfg["name"]
+    print(f"\\n--- Đang huấn luyện cấu hình: {cfg_name} ---")
+    tr_loader, va_loader = create_dataloaders(
+        data_dir=DATA_DIR,
+        train_idx=train_idx,
+        val_idx=val_idx,
+        augment=cfg["augment"],
+        pretrained=cfg["pretrained"],
+        batch_size=32,
+        seed=42
+    )
+    seed_everything(42)
+    model = cfg["model_fn"]()
+    trial_data = train_single_configuration(
+        config_name=cfg_name,
+        model=model,
+        train_loader=tr_loader,
+        val_loader=va_loader,
+        comp_device=comp_device,
+        frozen_backbone=cfg["frozen"],
+        epochs=4,
+        lr=DEFAULT_LR
+    )
+    results.append(trial_data)
+    from sklearn.metrics import confusion_matrix
+    cms[cfg_name] = confusion_matrix(trial_data["y_true"], trial_data["y_pred"], labels=list(range(len(CLASSES))))
+"""),
+
+    md_cell("""## Bước 5: Bảng so sánh tổng hợp 3 cấu hình Thí nghiệm"""),
+
+    code_cell("""df_summary = pd.DataFrame([
+    {
+        "Cấu hình": res["name"],
+        "Số tham số train": f"{res['param_count']:,}",
+        "Train Loss": f"{res['history']['train_loss'][-1]:.4f}",
+        "Val Loss": f"{res['final_val_loss']:.4f}",
+        "Val Accuracy": f"{res['final_val_acc'] * 100:.2f}%",
+        "Macro-F1": f"{res['final_val_f1']:.4f}",
+        "Giây/epoch": f"{res['avg_sec']:.2f}s"
+    }
+    for res in results
+])
+display(df_summary)
+"""),
+
+    md_cell("""## Bước 6: Trực quan hóa đối chiếu Đường cong học tập (3 Subplots)
+Lưu biểu đồ vào `docs/day05/task02/image_learning_curves.png` và `bin/day05/task02/results/learning_curves.png`.
+"""),
+
+    code_cell("""curves_paths = [
+    os.path.join(PROJECT_ROOT, "docs", "day05", "task02", "image_learning_curves.png"),
+    os.path.join(PROJECT_ROOT, "bin", "day05", "task02", "results", "learning_curves.png")
+]
+render_comparative_curves(results, curves_paths, epochs=4)
+display(Image(curves_paths[0]))
+"""),
+
+    md_cell("""## Bước 7: Trực quan hóa Ma trận nhầm lẫn (Confusion Matrices 3 Subplots)
+Lưu biểu đồ vào `docs/day05/task02/image_confusion_matrix.png` và `bin/day05/task02/results/confusion_matrix.png`.
+"""),
+
+    code_cell("""cm_paths = [
+    os.path.join(PROJECT_ROOT, "docs", "day05", "task02", "image_confusion_matrix.png"),
+    os.path.join(PROJECT_ROOT, "bin", "day05", "task02", "results", "confusion_matrix.png")
+]
+render_confusion_matrices(cms, classes=CLASSES, output_paths=cm_paths)
+display(Image(cm_paths[0]))
+"""),
+
+    md_cell("""## Bước 8: Trực quan hóa 5 mẫu ảnh dự đoán Đúng và 5 mẫu ảnh dự đoán Sai
+Lưu ảnh minh chứng cho từng mô hình vào `docs/day05/task02/` và `bin/day05/task02/results/`.
+"""),
+
+    code_cell("""for res in results:
+    cfg_name = res["name"]
+    sample_paths = [
+        os.path.join(PROJECT_ROOT, "docs", "day05", "task02", f"image_examples_{cfg_name}.png"),
+        os.path.join(PROJECT_ROOT, "bin", "day05", "task02", f"examples_{cfg_name}.png")
+    ]
+    render_example_predictions(
+        raw_dataset=raw_dataset,
+        val_idx=val_idx,
+        y_true=res["y_true"],
+        y_pred=res["y_pred"],
+        config_name=cfg_name,
+        output_paths=sample_paths,
+        classes=CLASSES
+    )
+
+display(Image(os.path.join(PROJECT_ROOT, "docs", "day05", "task02", "image_examples_mobilenetv3_small_pretrained.png")))
+"""),
+
+    md_cell("""## Bước 9: Nhận xét chuyên sâu và Bài học kinh nghiệm thực tế
+
+1. **Hiệu ứng của Data Augmentation trên mạng tự học:**
+   - Trong 4 epoch đầu, `cnn_augmentation` đạt 39.0% Accuracy so với 42.0% của baseline. Sự tăng độ khó của tập train khiến train loss cao hơn (1.6170 vs 1.4880), nhưng khoảng cách giữa train và val được thu hẹp, giúp điều chuẩn chống overfit hiệu quả.
+   - Khi tăng số epoch (ví dụ 15 đến 30 epochs), augmentation sẽ thể hiện ưu thế vượt trội khi baseline bắt đầu phân kỳ quá khớp.
+
+2. **Bước nhảy vọt từ Transfer Learning:**
+   - `mobilenetv3_small_pretrained` đạt **83.40% Accuracy** và **0.8350 Macro-F1**, bỏ xa CNN tự học hơn 41 đến 44 điểm phần trăm.
+   - Nhờ thừa hưởng đặc trưng tổng quát từ ImageNet, mô hình đạt 78.4% ngay từ epoch 1 và duy trì khả năng tổng quát hóa tuyệt vời.
+
+3. **Đánh đổi về chi phí tính toán:**
+   - MobileNet chỉ huấn luyện 10,250 tham số (ít hơn 26 lần), nhưng thời gian mỗi epoch chậm hơn 4 đến 5 lần (3.68s so với 0.72s đến 0.95s) do kích thước ảnh đầu vào $224 \\times 224$ lớn gấp 49 lần so với ảnh $32 \\times 32$.
+""")
+]
+
+
 if __name__ == "__main__":
     path_d01_t01 = os.path.join(DEFAULT_NOTEBOOKS_DIR, "day01_task01_mlp_construction.ipynb")
     path_d01_t02 = os.path.join(DEFAULT_NOTEBOOKS_DIR, "day01_task02_mlp_exploration.ipynb")
     path_d03_t01 = os.path.join(DEFAULT_NOTEBOOKS_DIR, "day03_task01_training_loop.ipynb")
     path_d03_t02 = os.path.join(DEFAULT_NOTEBOOKS_DIR, "day03_task02_optimizer_comparison.ipynb")
+    path_d04_t01 = os.path.join(DEFAULT_NOTEBOOKS_DIR, "day04_task01_cnn_fashionmnist.ipynb")
+    path_d04_t02 = os.path.join(DEFAULT_NOTEBOOKS_DIR, "day04_task02_cnn_variants.ipynb")
+    path_d05_t01 = os.path.join(DEFAULT_NOTEBOOKS_DIR, "day05_task01_transfer_learning.ipynb")
+    path_d05_t02 = os.path.join(DEFAULT_NOTEBOOKS_DIR, "day05_task02_transfer_learning.ipynb")
 
     write_notebook(path_d01_t01, cells_day01_task01)
     write_notebook(path_d01_t02, cells_day01_task02)
     write_notebook(path_d03_t01, cells_day03_task01)
     write_notebook(path_d03_t02, cells_day03_task02)
+    write_notebook(path_d04_t01, cells_day04_task01)
+    write_notebook(path_d04_t02, cells_day04_task02)
+    write_notebook(path_d05_t01, cells_day05_task01)
+    write_notebook(path_d05_t02, cells_day05_task02)
+

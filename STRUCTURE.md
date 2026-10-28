@@ -42,12 +42,20 @@ ASS--Deep-Learning/
 │   │   ├── day01_task02_mlp_exploration.py
 │   │   ├── day02_task_evidence_generation.py
 │   │   ├── day03_task01_training_loop.py
-│   │   └── day03_task02_optimizer_comparison.py
+│   │   ├── day03_task02_optimizer_comparison.py
+│   │   ├── day04_task01_cnn_fashionmnist.py
+│   │   ├── day04_task02_cnn_variants.py
+│   │   ├── day05_task01_transfer_learning.py
+│   │   └── day05_task02_transfer_learning.py
 │   └── notebooks/                    # Interactive walkthrough Jupyter Notebooks
 │       ├── day01_task01_mlp_construction.ipynb
 │       ├── day01_task02_mlp_exploration.ipynb
 │       ├── day03_task01_training_loop.ipynb
-│       └── day03_task02_optimizer_comparison.ipynb
+│       ├── day03_task02_optimizer_comparison.ipynb
+│       ├── day04_task01_cnn_fashionmnist.ipynb
+│       ├── day04_task02_cnn_variants.ipynb
+│       ├── day05_task01_transfer_learning.ipynb
+│       └── day05_task02_transfer_learning.ipynb
 ├── temp/                             # Scratch and reference input files
 ├── tools/                            # Code generation, automation, and validation scripts
 │   ├── notebooks_generate.py         # Notebook generator script
@@ -118,7 +126,7 @@ ASS--Deep-Learning/
 ## 4. Typography and Code Documentation Rules
 
 All code and prose must respect the repository-wide constraints:
-1. **No Em-Dashes**: Never use em-dashes (`—`) anywhere in prose, markdown files, docstrings, or code comments. Use colons, commas, periods, or parentheses instead.
+1. **No Em-Dashes**: Never use em-dashes (Unicode U+2014) anywhere in prose, markdown files, docstrings, or code comments. Use colons, commas, periods, or parentheses instead.
 2. **Zero Inline Comments**: No inline comments inside function bodies or on the same line as executable code (per `COMMENT.md`). Code must be self-documenting.
 3. **Four-Section Docstrings**: Every public function and class must include `Summary`, `Input`, `Output`, and `Flow`.
 4. **Hyperparameter Constants**: All thresholds, default paths, and hyperparameters must be declared as `DEFAULT_*` constants directly after module imports.

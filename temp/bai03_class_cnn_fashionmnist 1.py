@@ -1,4 +1,4 @@
-"""BUỔI 3 — ĐỀ BÀI TRÊN LỚP: CNN hai block trên FashionMNIST.
+"""BUỔI 3  -  ĐỀ BÀI TRÊN LỚP: CNN hai block trên FashionMNIST.
 
 Tập train=6000, validation=1200 lấy từ TRAIN chính thức, seed=42.
 Không sử dụng tập TEST trong quá trình thực hành trên lớp.
@@ -61,16 +61,16 @@ class MLP(nn.Module):
 def print_shapes(model):
     """TODO 1: In shape sau conv1, pool1, conv2, pool2, trước Linear với input (1,1,28,28)."""
     # Gợi ý: x = torch.zeros(1,1,28,28); model.conv1(x); model.relu(...); model.pool(...)
-    raise NotImplementedError('TODO 1 — in đúng 5 shape')
+    raise NotImplementedError('TODO 1  -  in đúng 5 shape')
 
 def train_one_epoch(model, train_loader, optimizer, criterion):
     """TODO 2: model.train(), zero_grad, forward, loss, backward, step; trả train loss trung bình."""
-    raise NotImplementedError('TODO 2 — huấn luyện một epoch')
+    raise NotImplementedError('TODO 2  -  huấn luyện một epoch')
 
 @torch.inference_mode()
 def validate(model, val_loader, criterion):
     """TODO 3: model.eval(); trả (validation_loss, validation_accuracy) theo SỐ MẪU."""
-    raise NotImplementedError('TODO 3 — validation')
+    raise NotImplementedError('TODO 3  -  validation')
 
 def main():
     set_seed()

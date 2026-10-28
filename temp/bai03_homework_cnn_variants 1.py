@@ -1,4 +1,4 @@
-"""BUỔI 3 — ĐỀ BÀI VỀ NHÀ: biến thể CNN.
+"""BUỔI 3  -  ĐỀ BÀI VỀ NHÀ: biến thể CNN.
 
 Mức cơ bản: baseline CNN, accuracy và confusion matrix trên test.
 Mức khá: một biến thể kernel/channel. Nâng cao: BatchNorm/Dropout.

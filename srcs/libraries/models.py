@@ -123,6 +123,71 @@ def build_moons_mlp(hidden_dim: int,
     )
 
 
+class CNN2Blocks(nn.Module):
+    """Two-block Convolutional Neural Network with configurable channels, kernel, norm, and dropout.
+
+    Input:  in_channels -- number of input image color channels (default 1);
+            side        -- spatial width and height of square input images (default 28);
+            channels    -- initial convolutional filter channels (default 16);
+            kernel_size -- square kernel dimension for 2D convolutions (default 3);
+            batchnorm   -- boolean flag enabling 2D batch normalization (default False);
+            dropout     -- probability of dropout applied before final projection (default 0.0);
+            num_classes -- number of target output classification categories (default 10).
+    Output: instantiated CNN2Blocks nn.Module.
+    Flow:   initialize two convolutional blocks with optional batch normalization, ReLU, and pooling,
+            calculate downsampled flattened spatial dimensions, attach linear projection layers,
+            and propagate inputs through the convolutional and classification pipeline.
+    """
+
+    def __init__(self,
+                 in_channels: int = 1,
+                 side: int = 28,
+                 channels: int = 16,
+                 kernel_size: int = 3,
+                 batchnorm: bool = False,
+                 dropout: float = 0.0,
+                 num_classes: int = 10):
+        super().__init__()
+        self.in_channels = in_channels
+        self.side = side
+        self.channels = channels
+        self.kernel_size = kernel_size
+        self.batchnorm = batchnorm
+        self.dropout = dropout
+        self.num_classes = num_classes
+
+        padding = kernel_size // 2
+        self.conv1 = nn.Conv2d(in_channels, channels, kernel_size=kernel_size, padding=padding)
+        self.bn1 = nn.BatchNorm2d(channels) if batchnorm else nn.Identity()
+        self.conv2 = nn.Conv2d(channels, 2 * channels, kernel_size=kernel_size, padding=padding)
+        self.bn2 = nn.BatchNorm2d(2 * channels) if batchnorm else nn.Identity()
+
+        self.relu = nn.ReLU()
+        self.pool = nn.MaxPool2d(kernel_size=2)
+        self.flatten = nn.Flatten()
+
+        flattened_dim = 2 * channels * (side // 4) * (side // 4)
+        self.fc1 = nn.Linear(flattened_dim, 128)
+        self.drop = nn.Dropout(p=dropout)
+        self.fc2 = nn.Linear(128, num_classes)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Forward pass through convolutional blocks, pooling, and dense layers.
+
+        Input:  x -- input image tensor of shape (batch_size, in_channels, side, side).
+        Output: raw logit tensor of shape (batch_size, num_classes).
+        Flow:   apply conv1, bn1, relu, pool1, then conv2, bn2, relu, pool2, flatten,
+                project through fc1, relu, drop, and final fc2 logits layer.
+        """
+        x = self.pool(self.relu(self.bn1(self.conv1(x))))
+        x = self.pool(self.relu(self.bn2(self.conv2(x))))
+        x = self.flatten(x)
+        x = self.relu(self.fc1(x))
+        x = self.drop(x)
+        return self.fc2(x)
+
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Model construction inspection CLI.")
     parser.add_argument("--hidden_dims", nargs="+", type=int, default=[32, 32], help="Hidden layer dimensions.")

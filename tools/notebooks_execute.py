@@ -20,7 +20,11 @@ DEFAULT_NOTEBOOKS = [
     "srcs/notebooks/day01_task01_mlp_construction.ipynb",
     "srcs/notebooks/day01_task02_mlp_exploration.ipynb",
     "srcs/notebooks/day03_task01_training_loop.ipynb",
-    "srcs/notebooks/day03_task02_optimizer_comparison.ipynb"
+    "srcs/notebooks/day03_task02_optimizer_comparison.ipynb",
+    "srcs/notebooks/day04_task01_cnn_fashionmnist.ipynb",
+    "srcs/notebooks/day04_task02_cnn_variants.ipynb",
+    "srcs/notebooks/day05_task01_transfer_learning.ipynb",
+    "srcs/notebooks/day05_task02_transfer_learning.ipynb"
 ]
 DEFAULT_TIMEOUT = 1200
 
