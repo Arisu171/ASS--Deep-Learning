@@ -1,4 +1,4 @@
-"""Generate standardized, production-grade Jupyter Notebooks for Day 1 and Day 3.
+"""Generate standardized, production-grade Jupyter Notebooks for Day 1, Day 3, Day 4, Day 5, and Day 6.
 
 CLI execution:
   python tools/notebooks_generate.py
@@ -11,6 +11,12 @@ Outputs:
   srcs/notebooks/day01_task02_mlp_exploration.ipynb
   srcs/notebooks/day03_task01_training_loop.ipynb
   srcs/notebooks/day03_task02_optimizer_comparison.ipynb
+  srcs/notebooks/day04_task01_cnn_fashionmnist.ipynb
+  srcs/notebooks/day04_task02_cnn_variants.ipynb
+  srcs/notebooks/day05_task01_transfer_learning.ipynb
+  srcs/notebooks/day05_task02_transfer_learning.ipynb
+  srcs/notebooks/day06_task01_lstm_text_classification.ipynb
+  srcs/notebooks/day06_task02_lstm_variants.ipynb
 """
 
 import json
@@ -1553,6 +1559,463 @@ display(Image(os.path.join(PROJECT_ROOT, "docs", "day05", "task02", "image_examp
 ]
 
 
+# ==============================================================================
+# DAY 06 TASK 01: LSTM PHÂN LOẠI VĂN BẢN TRÊN AG NEWS
+# ==============================================================================
+cells_day06_task01 = [
+    md_cell("""# BUỔI 06 - BÀI TẬP 01: PHÂN LOẠI VĂN BẢN VỚI LSTM TRÊN AG NEWS
+
+### Mục tiêu thực hành:
+1. Hiểu nguyên tắc cô lập hoàn toàn tập Test chính thức ngay từ bước tiền xử lý và xây dựng từ vựng.
+2. Nắm vững cơ chế đóng gói chuỗi `pack_padded_sequence` trong PyTorch để xử lý văn bản có độ dài biến thiên, bỏ qua token padding `<pad>` khi tính toán hồi quy.
+3. Huấn luyện mạng LSTM một chiều, một tầng kết hợp kỹ thuật kẹp gradient (`gradient clipping`) để chống bùng nổ đạo hàm.
+4. Đánh giá mô hình bằng Validation Loss để chọn checkpoint tối ưu, sau đó kiểm tra độ chính xác trên 7,600 bản tin Test thật.
+5. Phân tích nguyên nhân ngữ nghĩa đằng sau các bản tin bị dự đoán sai.
+"""),
+
+    md_cell("""## Bước 1: Khởi tạo Môi trường, Thiết lập Seed và Định cấu hình
+Thiết lập seed 42 để đảm bảo tính tái lập kết quả thực nghiệm.
+"""),
+
+    code_cell("""import os
+import sys
+import time
+import json
+import torch
+import numpy as np
+import pandas as pd
+from IPython.display import Image, display
+
+PROJECT_ROOT = os.path.abspath(os.path.join(os.getcwd(), "..", ".."))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+from srcs.pipelines.day06_task01_lstm_text_classification import (
+    set_seed,
+    load_agnews_splits,
+    tokenize,
+    build_vocab,
+    AGNewsTextDataset,
+    collate_batch,
+    LSTMClassifier,
+    train_one_epoch,
+    evaluate,
+    draw_learning_curve,
+    draw_confusion_matrix,
+    CLASS_NAMES,
+    DEFAULT_DATA_DIR,
+    DEFAULT_DOCS_DIR,
+    DEFAULT_BIN_DIR,
+    DEFAULT_MODELS_DIR
+)
+
+set_seed(42)
+comp_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"PyTorch Device: {comp_device}")
+"""),
+
+    md_cell("""## Bước 2: Tải Dữ liệu AG News và Phân chia Phân tầng (Stratified Split)
+Tập train chính thức (120,000 bản tin) được phân chia phân tầng thành train và validation.
+Tập Test (7,600 mẫu) được giữ nguyên vẹn để kiểm tra năng lực tổng quát hóa.
+"""),
+
+    code_cell("""train_rows, val_rows, test_rows = load_agnews_splits(
+    data_dir=DEFAULT_DATA_DIR,
+    val_size=6000,
+    train_size=15000,
+    seed=42
+)
+print(f"Train samples:      {len(train_rows):,}")
+print(f"Validation samples: {len(val_rows):,}")
+print(f"Test samples:       {len(test_rows):,}")
+"""),
+
+    md_cell("""## Bước 3: Tiền xử lý Văn bản và Xây dựng Từ điển (Vocabulary)
+Từ điển chỉ được thống kê trên tập huấn luyện để loại bỏ hoàn toàn nguy cơ rò rỉ dữ liệu (data leakage).
+"""),
+
+    code_cell("""vocab = build_vocab(train_rows, max_vocab=12000, min_freq=2)
+print(f"Kích thước từ vựng (Vocabulary size): {len(vocab):,}")
+
+sample_headline = train_rows[0]["text"]
+sample_tokens = tokenize(sample_headline)
+sample_ids = [vocab.get(t, 1) for t in sample_tokens[:12]]
+print(f"Bản tin gốc: {sample_headline[:100]}...")
+print(f"Tokens:     {sample_tokens[:8]}")
+print(f"Token IDs:  {sample_ids[:8]}")
+"""),
+
+    md_cell("""## Bước 4: Khởi tạo Dataset và DataLoader với Bộ gom nhóm động (collate_batch)
+Bộ gom nhóm động pad chuỗi theo độ dài lớn nhất của từng mini-batch thay vì pad cứng toàn bộ dữ liệu.
+"""),
+
+    code_cell("""from torch.utils.data import DataLoader
+
+train_ds = AGNewsTextDataset(train_rows, vocab, max_len=80)
+val_ds = AGNewsTextDataset(val_rows, vocab, max_len=80)
+test_ds = AGNewsTextDataset(test_rows, vocab, max_len=80)
+
+train_loader = DataLoader(train_ds, batch_size=64, shuffle=True, collate_fn=collate_batch)
+val_loader = DataLoader(val_ds, batch_size=64, shuffle=False, collate_fn=collate_batch)
+test_loader = DataLoader(test_ds, batch_size=64, shuffle=False, collate_fn=collate_batch)
+
+batch_ids, batch_lens, batch_labels, _ = next(iter(train_loader))
+print(f"Batch IDs shape [B, T]:     {tuple(batch_ids.shape)}")
+print(f"Lengths shape [B]:          {tuple(batch_lens.shape)} (Min: {int(batch_lens.min())}, Max: {int(batch_lens.max())})")
+print(f"Labels shape [B]:           {tuple(batch_labels.shape)}")
+"""),
+
+    md_cell("""## Bước 5: Định nghĩa và Khởi tạo Kiến trúc LSTMClassifier
+Kiến trúc gồm: Embedding (12000 -> 64) -> pack_padded_sequence -> LSTM(64 -> 96) -> Linear(96 -> 4).
+"""),
+
+    code_cell("""model = LSTMClassifier(
+    vocab_size=len(vocab),
+    embedding_dim=64,
+    hidden_dim=96,
+    n_classes=4
+).to(comp_device)
+
+total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+print(f"Tong so tham so co the huan luyen: {total_params:,}")
+
+with torch.no_grad():
+    check_emb = model.embedding(batch_ids.to(comp_device))
+    check_out = model(batch_ids.to(comp_device), batch_lens)
+print(f"Embedding output shape [B, T, E]: {tuple(check_emb.shape)}")
+print(f"Logits output shape [B, 4]:        {tuple(check_out.shape)}")
+"""),
+
+    md_cell("""## Bước 6: Huấn luyện với Kẹp Gradient (Gradient Clipping) và Chọn Checkpoint
+Lưu checkpoint tại epoch có Validation Loss nhỏ nhất để kiểm định trên tập Test.
+"""),
+
+    code_cell("""criterion = torch.nn.CrossEntropyLoss()
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+best_checkpoint = os.path.join(DEFAULT_MODELS_DIR, "best_model.pt")
+
+history = []
+best_val_loss = float("inf")
+best_epoch = None
+epochs = 4
+
+print("===== BAT DAU HUAN LUYEN =====")
+for epoch in range(1, epochs + 1):
+    t0 = time.perf_counter()
+    train_loss = train_one_epoch(model, train_loader, optimizer, criterion, comp_device, max_grad_norm=1.0)
+    val_metrics = evaluate(model, val_loader, criterion, comp_device)
+    dt = time.perf_counter() - t0
+    
+    rec = {
+        "epoch": epoch,
+        "train_loss": train_loss,
+        "validation_loss": val_metrics["loss"],
+        "validation_accuracy": val_metrics["accuracy"],
+        "validation_macro_f1": val_metrics["macro_f1"],
+        "seconds": dt
+    }
+    history.append(rec)
+    
+    if val_metrics["loss"] < best_val_loss:
+        best_val_loss = val_metrics["loss"]
+        best_epoch = epoch
+        torch.save(model.state_dict(), best_checkpoint)
+        
+    print(f"Epoch {epoch:02d}/{epochs:02d} | Train: {train_loss:.4f} | Val: {val_metrics['loss']:.4f} | "
+          f"Val Acc: {val_metrics['accuracy']:.2%} | Val F1: {val_metrics['macro_f1']:.4f} | {dt:.1f}s")
+"""),
+
+    md_cell("""## Bước 7: Đánh giá Cuối cùng trên Tập Test Chính thức (7,600 bản tin)
+Nạp trọng số tối ưu từ checkpoint tốt nhất của Validation và tính toán trên tập Test.
+"""),
+
+    code_cell("""model.load_state_dict(torch.load(best_checkpoint, map_location=comp_device, weights_only=True))
+test_metrics = evaluate(model, test_loader, criterion, comp_device, collect_errors=True)
+
+print(f"Checkpoint duoc chon: Epoch {best_epoch} (Val Loss: {best_val_loss:.4f})")
+print(f"Official Test Loss:     {test_metrics['loss']:.4f}")
+print(f"Official Test Accuracy: {test_metrics['accuracy']:.2%}")
+print(f"Official Test Macro-F1: {test_metrics['macro_f1']:.4f}")
+print(f"Tong so tin doan dung:  {len(test_rows) - len(test_metrics['errors'])} / {len(test_rows)}")
+"""),
+
+    md_cell("""## Bước 8: Trực quan hóa Đường cong học tập và Ma trận nhầm lẫn
+Biểu đồ hiển thị tiến trình loss qua từng epoch và ma trận phân bổ dự đoán trên 4 chủ đề.
+"""),
+
+    code_cell("""from pathlib import Path
+docs_dir = Path(DEFAULT_DOCS_DIR)
+bin_dir = Path(DEFAULT_BIN_DIR)
+
+lc_paths = [docs_dir / "learning_curve.png", bin_dir / "learning_curve.png"]
+draw_learning_curve(history, lc_paths)
+display(Image(str(lc_paths[0])))
+
+cm_paths = [docs_dir / "confusion_matrix_test.png", bin_dir / "confusion_matrix_test.png"]
+draw_confusion_matrix(test_metrics["true"], test_metrics["predicted"], cm_paths)
+display(Image(str(cm_paths[0])))
+"""),
+
+    md_cell("""## Bước 9: Phân tích Chuyên sâu các Bản tin Dự đoán Sai trên Tập Test
+Trích xuất và giải thích nguyên nhân ngữ nghĩa của 3 trường hợp nhầm lẫn tiêu biểu.
+"""),
+
+    code_cell("""for idx, err in enumerate(test_metrics["errors"][:3], start=1):
+    print(f"\\n--- Vi du sai {idx} ---")
+    print(f"Nhan dung (True):      {err['true_label']}")
+    print(f"Nhan du doan (Pred):   {err['predicted_label']}")
+    print(f"Noi dung: {err['text'][:300]}")
+"""),
+
+    md_cell("""## Bước 10: Nhận xét và Bài học Kinh nghiệm Thực tế
+
+1. **Hiệu quả của `pack_padded_sequence`:**
+   - Việc đóng gói chuỗi giúp PyTorch bỏ qua các bước tính toán lặp lại trên token `<pad>`, vừa tiết kiệm tài nguyên vừa ngăn ngừa trạng thái ẩn cuối cùng bị pha loãng bởi các giá trị đệm.
+2. **Kẹp Gradient (Gradient Clipping):**
+   - Đặt ngưỡng kẹp vector đạo hàm ở mức $1.0$ là chốt chặn quan trọng giữ cho quá trình học ổn định, hoàn toàn không xuất hiện hiện tượng dao động loss mất kiểm soát (gradient explosion).
+3. **Độ chính xác và Điểm mù của LSTM một chiều:**
+   - Mô hình đạt **83.05% Test Accuracy** và **0.8308 Macro-F1** chỉ sau 4 epoch.
+   - Nhóm nhầm lẫn phổ biến nhất là giữa **Business** và **Sci/Tech** do ngôn ngữ báo chí về các tập đoàn công nghệ thường đan xen giữa doanh thu cổ phiếu và đột phá khoa học.
+""")
+]
+
+
+# ==============================================================================
+# DAY 06 TASK 02: SO SÁNH CÁC BIẾN THỂ KIẾN TRÚC LSTM TRÊN AG NEWS
+# ==============================================================================
+cells_day06_task02 = [
+    md_cell("""# BUỔI 06 - BÀI TẬP 02: SO SÁNH CÁC BIẾN THỂ KIẾN TRÚC LSTM TRÊN AG NEWS
+
+### Mục tiêu thực hành:
+1. Thực hiện nghiên cứu thực nghiệm kiểm chứng (ablation study) đánh giá độc lập từng thành phần kiến trúc:
+   - `baseline`: Cấu hình chuẩn đối chứng (Emb 64, Hidden 96, 1 chiều).
+   - `embedding_128`: Tăng kích thước vector nhúng từ lên 128 chiều.
+   - `hidden_128`: Tăng dung lượng bộ nhớ hồi quy LSTM lên 128 chiều.
+   - `bilstm`: LSTM hai chiều kết hợp cả dòng ngữ cảnh xuôi và ngược.
+   - `dropout_03`: Điều chuẩn ngẫu nhiên bằng cách ngắt 30% kết nối để chống học vẹt.
+2. Đảm bảo điều kiện so sánh công bằng: cùng tập dữ liệu, cùng seed, cùng optimizer và số epoch.
+3. Lựa chọn mô hình tối ưu theo Validation Loss và đánh giá trên 7,600 mẫu Test chính thức.
+4. Phân tích nguyên nhân ngữ nghĩa của ít nhất 5 trường hợp dự đoán sai trên tập Test.
+"""),
+
+    md_cell("""## Bước 1: Khởi tạo Môi trường và Thiết lập Deterministic Seed
+Cấu hình môi trường tính toán và nạp các hàm thư viện cần thiết.
+"""),
+
+    code_cell("""import os
+import sys
+import time
+import json
+import torch
+import numpy as np
+import pandas as pd
+from IPython.display import Image, display
+
+PROJECT_ROOT = os.path.abspath(os.path.join(os.getcwd(), "..", ".."))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+from srcs.pipelines.day06_task02_lstm_variants import (
+    set_seed,
+    load_agnews_full,
+    tokenize,
+    build_vocab,
+    NewsDataset,
+    collate_news,
+    LSTMClassifier,
+    count_parameters,
+    train_one_epoch,
+    evaluate,
+    save_csv,
+    plot_learning_curves,
+    plot_confusion_matrix,
+    choose_diverse_errors,
+    EXPERIMENT_CONFIGS,
+    LABEL_NAMES,
+    DEFAULT_DATA_DIR,
+    DEFAULT_DOCS_DIR,
+    DEFAULT_BIN_DIR,
+    DEFAULT_MODELS_DIR
+)
+
+set_seed(42)
+comp_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"Computation Device: {comp_device}")
+"""),
+
+    md_cell("""## Bước 2: Tải Dữ liệu và Xây dựng Từ vựng Tập trung
+Tập dữ liệu sử dụng 10,000 mẫu train, 6,000 mẫu validation và 7,600 mẫu test chính thức.
+"""),
+
+    code_cell("""train_rows, val_rows, test_rows = load_agnews_full(
+    data_dir=DEFAULT_DATA_DIR,
+    val_size=6000,
+    train_size=10000,
+    seed=42
+)
+vocab = build_vocab(train_rows, max_vocab=20000, min_freq=2)
+print(f"Kich thuoc Tu vung: {len(vocab):,} tu")
+
+train_ds = NewsDataset(train_rows, vocab, max_len=100)
+val_ds = NewsDataset(val_rows, vocab, max_len=100)
+test_ds = NewsDataset(test_rows, vocab, max_len=100)
+
+val_loader = torch.utils.data.DataLoader(val_ds, batch_size=128, shuffle=False, collate_fn=collate_news)
+test_loader = torch.utils.data.DataLoader(test_ds, batch_size=128, shuffle=False, collate_fn=collate_news)
+"""),
+
+    md_cell("""## Bước 3: Định nghĩa 5 Cấu hình Thực nghiệm Cần So sánh
+Mỗi thí nghiệm chỉ thay đổi duy nhất một yếu tố so với baseline để phân lập tác động.
+"""),
+
+    code_cell("""for name, cfg in EXPERIMENT_CONFIGS.items():
+    temp_model = LSTMClassifier(len(vocab), **cfg)
+    p_count = count_parameters(temp_model)
+    print(f"Cau hinh {name:15s} | Params: {p_count:,} | Chi tiet: {cfg}")
+"""),
+
+    md_cell("""## Bước 4: Thực hiện Huấn luyện 5 Mô hình và Lưu Checkpoint theo Validation Loss
+Mỗi cấu hình được huấn luyện 3 epochs với cùng learning rate ($0.001$) và batch size 128.
+"""),
+
+    code_cell("""criterion = torch.nn.CrossEntropyLoss()
+histories = {}
+records = []
+
+for name, cfg in EXPERIMENT_CONFIGS.items():
+    print(f"\\n===== HUAN LUYEN: {name} =====")
+    set_seed(42)
+    model = LSTMClassifier(len(vocab), **cfg).to(comp_device)
+    train_loader = torch.utils.data.DataLoader(
+        train_ds, batch_size=128, shuffle=True,
+        collate_fn=collate_news, generator=torch.Generator().manual_seed(42)
+    )
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    checkpoint_path = os.path.join(DEFAULT_MODELS_DIR, f"best_{name}.pt")
+    
+    best_loss = float("inf")
+    best_epoch = None
+    history = []
+    
+    for epoch in range(1, 4):
+        t0 = time.perf_counter()
+        tr_loss = train_one_epoch(model, train_loader, optimizer, criterion, comp_device)
+        val_res = evaluate(model, val_loader, criterion, comp_device)
+        dt = time.perf_counter() - t0
+        
+        rec = {
+            "epoch": epoch,
+            "train_loss": tr_loss,
+            "validation_loss": val_res["loss"],
+            "validation_accuracy": val_res["accuracy"],
+            "validation_macro_f1": val_res["macro_f1"],
+            "seconds": dt
+        }
+        history.append(rec)
+        
+        if val_res["loss"] < best_loss:
+            best_loss = val_res["loss"]
+            best_epoch = epoch
+            torch.save(model.state_dict(), checkpoint_path)
+            
+        print(f"{name:15s} | Ep {epoch:02d}/03 | Train: {tr_loss:.4f} | Val: {val_res['loss']:.4f} | "
+              f"Val Acc: {val_res['accuracy']:.2%} | Val F1: {val_res['macro_f1']:.4f} | {dt:.1f}s")
+        
+    histories[name] = history
+    records.append({
+        "config": name,
+        **cfg,
+        "trainable_parameters": count_parameters(model),
+        "best_epoch": best_epoch,
+        "best_validation_loss": best_loss,
+        "mean_seconds_per_epoch": round(sum(h["seconds"] for h in history) / len(history), 2)
+    })
+"""),
+
+    md_cell("""## Bước 5: Lựa chọn Mô hình Tối ưu và Đánh giá Toàn diện trên Tập Test
+Mô hình chiến thắng được xác định dựa trên Validation Loss trước khi mở tập Test.
+"""),
+
+    code_cell("""selected_config = min(records, key=lambda r: r["best_validation_loss"])["config"]
+print(f"Mo hinh duoc lua chon theo Validation Loss: {selected_config}")
+
+best_errors = []
+print("\\n===== DANH GIA TREN OFFICIAL TEST SET (7,600 MAU) =====")
+for rec in records:
+    c_name = rec["config"]
+    m = LSTMClassifier(len(vocab), **EXPERIMENT_CONFIGS[c_name]).to(comp_device)
+    m.load_state_dict(torch.load(os.path.join(DEFAULT_MODELS_DIR, f"best_{c_name}.pt"), map_location=comp_device, weights_only=True))
+    res = evaluate(m, test_loader, criterion, comp_device, collect_errors=True)
+    
+    rec["test_loss"] = round(res["loss"], 4)
+    rec["test_accuracy"] = round(res["accuracy"], 4)
+    rec["test_macro_f1"] = round(res["macro_f1"], 4)
+    rec["test_errors"] = len(res["errors"])
+    
+    if c_name == selected_config:
+        best_errors = res["errors"]
+        
+    print(f"TEST | {c_name:15s} | Loss: {res['loss']:.4f} | "
+          f"Acc: {res['accuracy']:.2%} | F1: {res['macro_f1']:.4f} | Loi: {len(res['errors'])}/7,600")
+"""),
+
+    md_cell("""## Bước 6: Bảng So sánh Tổng hợp Kết quả Thực nghiệm
+Hiển thị bảng dữ liệu so sánh trực tiếp 5 biến thể kiến trúc.
+"""),
+
+    code_cell("""df_results = pd.DataFrame(records)[[
+    "config", "embedding_dim", "hidden_dim", "bidirectional", "dropout",
+    "trainable_parameters", "best_validation_loss", "mean_seconds_per_epoch",
+    "test_loss", "test_accuracy", "test_macro_f1", "test_errors"
+]]
+display(df_results)
+"""),
+
+    md_cell("""## Bước 7: Trực quan hóa Đường cong học tập 3 Panel và Ma trận nhầm lẫn
+Vẽ biểu đồ Train Loss, Validation Loss và Validation Accuracy cho toàn bộ 5 cấu hình.
+"""),
+
+    code_cell("""from pathlib import Path
+docs_dir = Path(DEFAULT_DOCS_DIR)
+bin_dir = Path(DEFAULT_BIN_DIR)
+
+lc_paths = [docs_dir / "learning_curves.png", bin_dir / "learning_curves.png"]
+plot_learning_curves(histories, lc_paths)
+display(Image(str(lc_paths[0])))
+
+cm_paths = [docs_dir / "confusion_matrix_test.png", bin_dir / "confusion_matrix_test.png"]
+selected_m = LSTMClassifier(len(vocab), **EXPERIMENT_CONFIGS[selected_config]).to(comp_device)
+selected_m.load_state_dict(torch.load(os.path.join(DEFAULT_MODELS_DIR, f"best_{selected_config}.pt"), map_location=comp_device, weights_only=True))
+selected_res = evaluate(selected_m, test_loader, criterion, comp_device)
+plot_confusion_matrix(selected_res["cm"], cm_paths, selected_config)
+display(Image(str(cm_paths[0])))
+"""),
+
+    md_cell("""## Bước 8: Phân tích Chuyên sâu 5 Bản tin Dự đoán Sai Tiêu biểu trên Tập Test
+Trích xuất 5 ví dụ đa dạng từ mô hình `embedding_128` kèm theo phân tích nguyên nhân ngữ nghĩa.
+"""),
+
+    code_cell("""diverse_errors = choose_diverse_errors(best_errors, limit=5)
+for i, err in enumerate(diverse_errors, start=1):
+    print(f"\\n--- Vi du sai {i} ---")
+    print(f"Nhan dung (True):      {err['true_label']}")
+    print(f"Nhan du doan (Pred):   {err['predicted_label']} (xac suat: {err['predicted_probability']:.3f})")
+    print(f"Do dai token goc:      {err['original_tokens']} | Bi cat ngan: {err['was_truncated']} | Ty le <unk>: {err['unk_ratio']:.2%}")
+    print(f"Noi dung: {err['text'][:300]}")
+"""),
+
+    md_cell("""## Bước 9: Kết luận và Khuyến nghị Kiến trúc
+
+1. **Hiệu năng vượt trội của Embedding 128:**
+   - Tăng `embedding_dim` lên 128 giúp Test Accuracy **tăng vọt 8.03%** (từ 68.50% lên 76.53%). Đây là khoản đầu tư hiệu quả nhất vì thời gian huấn luyện chỉ tăng nhẹ từ 26.9s lên 34.4s.
+2. **Sức mạnh ngữ cảnh của BiLSTM:**
+   - `bilstm` đạt **75.21% Test Accuracy** (vượt baseline 6.71%), chứng minh khả năng bắt trọn thông tin từ hai chiều giúp giải quyết các câu có từ khóa chủ đạo nằm ở đầu hoặc giữa câu.
+3. **Đánh đổi về chi phí tính toán:**
+   - BiLSTM chạy chậm hơn gần 3 lần (78.20s/epoch so với 26.90s), do đó trong môi trường hạn chế tài nguyên, việc tăng chiều vector nhúng (embedding) luôn là giải pháp ưu tiên trước khi nâng cấp sang mạng hai chiều.
+""")
+]
+
+
 if __name__ == "__main__":
     path_d01_t01 = os.path.join(DEFAULT_NOTEBOOKS_DIR, "day01_task01_mlp_construction.ipynb")
     path_d01_t02 = os.path.join(DEFAULT_NOTEBOOKS_DIR, "day01_task02_mlp_exploration.ipynb")
@@ -1562,6 +2025,8 @@ if __name__ == "__main__":
     path_d04_t02 = os.path.join(DEFAULT_NOTEBOOKS_DIR, "day04_task02_cnn_variants.ipynb")
     path_d05_t01 = os.path.join(DEFAULT_NOTEBOOKS_DIR, "day05_task01_transfer_learning.ipynb")
     path_d05_t02 = os.path.join(DEFAULT_NOTEBOOKS_DIR, "day05_task02_transfer_learning.ipynb")
+    path_d06_t01 = os.path.join(DEFAULT_NOTEBOOKS_DIR, "day06_task01_lstm_text_classification.ipynb")
+    path_d06_t02 = os.path.join(DEFAULT_NOTEBOOKS_DIR, "day06_task02_lstm_variants.ipynb")
 
     write_notebook(path_d01_t01, cells_day01_task01)
     write_notebook(path_d01_t02, cells_day01_task02)
@@ -1571,4 +2036,7 @@ if __name__ == "__main__":
     write_notebook(path_d04_t02, cells_day04_task02)
     write_notebook(path_d05_t01, cells_day05_task01)
     write_notebook(path_d05_t02, cells_day05_task02)
+    write_notebook(path_d06_t01, cells_day06_task01)
+    write_notebook(path_d06_t02, cells_day06_task02)
+
 

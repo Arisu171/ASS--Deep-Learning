@@ -16,18 +16,22 @@ ASS--Deep-Learning/
 │   ├── day01/                        # Day 1 artifacts (task01, task02)
 │   ├── day02/                        # Day 2 synthetic evidence plots
 │   ├── day03/                        # Day 3 artifacts (task01, task02)
-│   └── day04/                        # Day 4 artifacts (task01, task02)
+│   ├── day04/                        # Day 4 artifacts (task01, task02)
+│   ├── day05/                        # Day 5 artifacts (task01, task02)
+│   └── day06/                        # Day 6 artifacts (task01, task02)
 ├── data/                             # Raw and downloaded datasets cached at project root
 ├── docs/                             # Analytical reports and documentation
 │   ├── day01/                        # Day 1 reports (task01, task02)
 │   ├── day02/                        # Day 2 D2L deep learning chapters (task01 to task05)
 │   ├── day03/                        # Day 3 reports (task01, task02)
-│   └── day04/                        # Day 4 reports (task01, task02)
+│   ├── day04/                        # Day 4 reports (task01, task02)
+│   ├── day05/                        # Day 5 reports (task01, task02)
+│   └── day06/                        # Day 6 reports (task01, task02)
 ├── srcs/                             # Core source code implementations
 │   ├── libraries/                    # Reusable low-level foundation building blocks
 │   │   ├── seeding.py                # Deterministic random seed controller
-│   │   ├── datasets.py               # Data loaders for make_moons and Fashion-MNIST
-│   │   ├── models.py                 # Configurable MLP and parameter introspection
+│   │   ├── datasets.py               # Data loaders for make_moons, Fashion-MNIST, CIFAR-10
+│   │   ├── models.py                 # Configurable neural architectures and introspection
 │   │   ├── metrics.py                # Evaluation metrics (Accuracy, Macro-F1)
 │   │   ├── training.py               # 5-step PyTorch training loops and validation
 │   │   ├── serialization.py          # Model checkpoint and metric persistence
@@ -43,14 +47,22 @@ ASS--Deep-Learning/
 │   │   ├── day03_task01_training_loop.py
 │   │   ├── day03_task02_optimizer_comparison.py
 │   │   ├── day04_task01_cnn_fashionmnist.py
-│   │   └── day04_task02_cnn_variants.py
+│   │   ├── day04_task02_cnn_variants.py
+│   │   ├── day05_task01_transfer_learning.py
+│   │   ├── day05_task02_transfer_learning.py
+│   │   ├── day06_task01_lstm_text_classification.py
+│   │   └── day06_task02_lstm_variants.py
 │   └── notebooks/                    # Interactive walkthrough Jupyter Notebooks
 │       ├── day01_task01_mlp_construction.ipynb
 │       ├── day01_task02_mlp_exploration.ipynb
 │       ├── day03_task01_training_loop.ipynb
 │       ├── day03_task02_optimizer_comparison.ipynb
 │       ├── day04_task01_cnn_fashionmnist.ipynb
-│       └── day04_task02_cnn_variants.ipynb
+│       ├── day04_task02_cnn_variants.ipynb
+│       ├── day05_task01_transfer_learning.ipynb
+│       ├── day05_task02_transfer_learning.ipynb
+│       ├── day06_task01_lstm_text_classification.ipynb
+│       └── day06_task02_lstm_variants.ipynb
 ├── temp/                             # Reference input files
 ├── tools/                            # Code generation, automation, and validation scripts
 │   ├── notebooks_generate.py         # Notebook generator script
@@ -196,6 +208,32 @@ All Python modules and pipelines in this repository strictly enforce the rules d
   - Documentation: [docs/day05/task02/task02_transfer_learning.md](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/docs/day05/task02/task02_transfer_learning.md)
   - Artifacts: [bin/day05/task02/](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/bin/day05/task02/)
 
+### 3.6 Day 6 Task 1: Pure LSTM Text Classification on AG News
+
+- **Objective**: News headline topic classification across 4 classes (World, Sports, Business, Sci/Tech) using a single-layer unidirectional LSTM with dynamic padding and `pack_padded_sequence`.
+- **Key Findings**:
+  - **Dynamic Packing**: Bypasses computation on padding tokens, yielding 83.05% Test Accuracy and 0.8308 Macro-F1 across 7,600 official test samples.
+  - **Gradient Clipping**: A norm ceiling of 1.0 ensures smooth convergence without recurrent gradient explosion.
+  - **Linguistic Error Patterns**: Misclassifications predominantly stem from semantic overlap between Business and Sci/Tech corporate news.
+- **Pipeline & Notebook**:
+  - Pipeline: [srcs/pipelines/day06_task01_lstm_text_classification.py](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/srcs/pipelines/day06_task01_lstm_text_classification.py)
+  - Notebook: [srcs/notebooks/day06_task01_lstm_text_classification.ipynb](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/srcs/notebooks/day06_task01_lstm_text_classification.ipynb)
+  - Documentation: [docs/day06/task01/task01_lstm_text_classification.md](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/docs/day06/task01/task01_lstm_text_classification.md)
+  - Artifacts: [bin/day06/task01/](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/bin/day06/task01/)
+
+### 3.7 Day 6 Task 2: Ablation Study of LSTM Architecture Variants
+
+- **Objective**: Systematic ablation study on AG News comparing 5 configurations: baseline, embedding_128, hidden_128, bilstm, and dropout_03.
+- **Key Findings**:
+  - **Embedding Dimensionality**: Doubling embedding size to 128 delivers the largest gain (+8.03% test accuracy to 76.53%) with modest compute overhead.
+  - **Bidirectional Processing**: BiLSTM captures both forward and backward contexts, achieving 75.21% test accuracy (+6.71% over baseline), but with nearly 3x execution latency.
+  - **Model Selection Integrity**: Checkpoints selected exclusively on validation loss before evaluating the official test set.
+- **Pipeline & Notebook**:
+  - Pipeline: [srcs/pipelines/day06_task02_lstm_variants.py](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/srcs/pipelines/day06_task02_lstm_variants.py)
+  - Notebook: [srcs/notebooks/day06_task02_lstm_variants.ipynb](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/srcs/notebooks/day06_task02_lstm_variants.ipynb)
+  - Documentation: [docs/day06/task02/task02_lstm_variants.md](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/docs/day06/task02/task02_lstm_variants.md)
+  - Artifacts: [bin/day06/task02/](file:///e:/Data/Devdata/Freelancers/Practice/ASS--Deep-Learning/bin/day06/task02/)
+
 ---
 
 ## 4. Execution Guide
@@ -244,6 +282,12 @@ python -m srcs.pipelines.day05_task01_transfer_learning --epochs 4
 
 # Day 5 Task 2: Data Augmentation and Transfer Learning on CIFAR-10
 python -m srcs.pipelines.day05_task02_transfer_learning --epochs 4
+
+# Day 6 Task 1: LSTM Text Classification on AG News
+python -m srcs.pipelines.day06_task01_lstm_text_classification --epochs 4
+
+# Day 6 Task 2: Ablation Study of LSTM Variants on AG News
+python -m srcs.pipelines.day06_task02_lstm_variants --epochs 3
 ```
 
 ### 4.3 Notebook Generation and Automated Verification

@@ -46,7 +46,9 @@ ASS--Deep-Learning/
 │   │   ├── day04_task01_cnn_fashionmnist.py
 │   │   ├── day04_task02_cnn_variants.py
 │   │   ├── day05_task01_transfer_learning.py
-│   │   └── day05_task02_transfer_learning.py
+│   │   ├── day05_task02_transfer_learning.py
+│   │   ├── day06_task01_lstm_text_classification.py
+│   │   └── day06_task02_lstm_variants.py
 │   └── notebooks/                    # Interactive walkthrough Jupyter Notebooks
 │       ├── day01_task01_mlp_construction.ipynb
 │       ├── day01_task02_mlp_exploration.ipynb
@@ -55,7 +57,9 @@ ASS--Deep-Learning/
 │       ├── day04_task01_cnn_fashionmnist.ipynb
 │       ├── day04_task02_cnn_variants.ipynb
 │       ├── day05_task01_transfer_learning.ipynb
-│       └── day05_task02_transfer_learning.ipynb
+│       ├── day05_task02_transfer_learning.ipynb
+│       ├── day06_task01_lstm_text_classification.ipynb
+│       └── day06_task02_lstm_variants.ipynb
 ├── temp/                             # Scratch and reference input files
 ├── tools/                            # Code generation, automation, and validation scripts
 │   ├── notebooks_generate.py         # Notebook generator script

@@ -24,7 +24,9 @@ DEFAULT_NOTEBOOKS = [
     "srcs/notebooks/day04_task01_cnn_fashionmnist.ipynb",
     "srcs/notebooks/day04_task02_cnn_variants.ipynb",
     "srcs/notebooks/day05_task01_transfer_learning.ipynb",
-    "srcs/notebooks/day05_task02_transfer_learning.ipynb"
+    "srcs/notebooks/day05_task02_transfer_learning.ipynb",
+    "srcs/notebooks/day06_task01_lstm_text_classification.ipynb",
+    "srcs/notebooks/day06_task02_lstm_variants.ipynb"
 ]
 DEFAULT_TIMEOUT = 1200
 
